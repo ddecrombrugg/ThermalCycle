@@ -169,7 +169,7 @@ R_sa = 287.058/1000;
 
 % Itération calcul T_2
 step = 1;
-t_2 = 700;
+t_2 = 1674;
 t_2_iter = 0;
 
 while abs(t_2-t_2_iter)>0.01
@@ -255,7 +255,7 @@ comp_f_N2 = v_4p*M_N2/(v_1p*M_CO2+v_2p*M_H2O+v_3p*M_O2+v_4p*M_N2);
 R_f = (8.314/(comp_f_CO2*M_CO2+comp_f_H2O*M_H2O+comp_f_O2*M_O2+comp_f_N2*M_N2))/1000;
 
 step = 1;
-t_4 = 1400;
+t_4 = 1674;
 t_4_iter = 0;
 
 while abs(t_4-t_4_iter)>0.01
