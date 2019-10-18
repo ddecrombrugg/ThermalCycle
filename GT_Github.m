@@ -96,7 +96,7 @@ if nargin < 3
        options.eta_PiC = 0.9;
        options.eta_PiT = 0.9;
        if nargin < 1
-           P_e = 230e3; % 100MW
+           P_e = 230e6; % 100MW
        end
    end
 end
@@ -374,6 +374,47 @@ MASSFLOW(1) = m_a; MASSFLOW(2) = m_c; MASSFLOW(3) = m_f;
 COMBUSTION.LHV = l_hv; COMBUSTION.e_c = e_c; COMBUSTION.lambda = lambda;
 COMBUSTION.Cp_g = c_pg; COMBUSTION.fum(1) = m_O2; COMBUSTION.fum(2) = m_N2;
 COMBUSTION.fum(3) = m_CO2; COMBUSTION.fum(4) = m_H2O;
+
+% Other calculations
+P_prim = P_e + perte_mecex + perte_rotex + perte_combex + perte_echex;
+Cp_g = COMBUSTION.Cp_g;
+
+% Graph
+if display==1
+    FIG(1) = figure;
+    labels = {'1','2','3','4'};
+    X = DAT(4,:); Y = DAT(3,:);
+    p = plot(X,Y,'b',[DAT(4,4) DAT(4,1)],[DAT(3,4) DAT(3,1)],'b');
+    p(1).Marker = 'o';
+    p(1).MarkerFaceColor = p(1).Color;
+    text(X,Y,labels,'FontSize',12,'VerticalAlignment','bottom','HorizontalAlignment','right')
+    title('H-S Graph');
+    axis([0 2 0 1800]);
+    ylabel('Enthalpy [kJ/kg]');
+    xlabel('Entropy [kJ/kg.K]');
+    
+    FIG(2) = figure;
+    labels = {'1','2','3','4'};
+    X = DAT(4,:); Y = DAT(1,:)+273.15;
+    p = plot(X,Y,'b',[DAT(4,4) DAT(4,1)],[DAT(1,4)+273.15 DAT(1,1)+273.15],'b');
+    p(1).Marker = 'o';
+    p(1).MarkerFaceColor = p(1).Color;
+    text(X,Y,labels,'FontSize',12,'VerticalAlignment','bottom','HorizontalAlignment','right')
+    title('T-S Graph');
+    axis([0 2 0 1800]);
+    ylabel('Temperature [K]');
+    xlabel('Entropy [kJ/kg.K]');
+    
+    FIG(4) = figure;
+    X = [P_e DATEX(2) DATEX(4) DATEX(1) DATEX(3)];
+    labels = {sprintf('Effective  Power \n (%g MW)', P_e/10^6),...
+             sprintf('Turbine & Compressor \n Irreversibilities \n (%g MW)', perte_rotex/10^6),...
+             sprintf('Exhaust  Loss \n (%g MW)', perte_echex/10^6),...
+             sprintf('Mechanical \n Losses \n (%g MW)', perte_mecex/10^6),...
+             sprintf('Combustion \n Irreversibility \n (%g MW)', perte_combex/10^6)};
+    pie(X,labels);
+    title(sprintf('Primary Exergy Flux (%g MW)', P_prim/10^6));
+else FIG=0;
 
 % Display
 ETA
