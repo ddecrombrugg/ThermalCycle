@@ -10,12 +10,12 @@ function [ETA DATEN DATEX DAT MASSFLOW COMBUSTION Cp_g FIG] = GT(P_e,options,dis
 % P_E = electrical power output target [kW]
 % OPTIONS is a structure containing :
 %   -options.k_mec [-] : Shaft losses 
-%   -options.T_0   [캜] : Reference temperature
-%   -options.T_ext [캜] : External temperature
+%   -options.T_0   [째C] : Reference temperature
+%   -options.T_ext [째C] : External temperature
 %   -options.r     [-] : Compression ratio
 %   -options.k_cc  [-] : Coefficient of pressure losses due to combustion
 %                        chamber
-%   -options.T_3   [캜] : Temperature after combustion (before turbine)
+%   -options.T_3   [째C] : Temperature after combustion (before turbine)
 %   -option.eta_PiC[-] : Intern polytropic efficiency (Rendement
 %                        polytropique interne) for compression
 %   -option.eta_PiT[-] : Intern polytropic efficiency (Rendement
@@ -41,7 +41,7 @@ function [ETA DATEN DATEX DAT MASSFLOW COMBUSTION Cp_g FIG] = GT(P_e,options,dis
 %   -datex(3) : perte_combex [kW]
 %   -datex(4) : perte_echex  [kW]
 % DAT is a matrix containing :
-% dat = {T_1       , T_2       , T_3       , T_4; [캜]
+% dat = {T_1       , T_2       , T_3       , T_4; [째C]
 %        p_1       , p_2       , p_3       , p_4; [bar]
 %        h_1       , h_2       , h_3       , h_4; [kJ/kg]
 %        s_1       , s_2       , s_3       , s_4; [kJ/kg/K]
@@ -116,23 +116,24 @@ options.eta_kcc = .95;
 
 %% Other parameters
 
-p_ext = 101325; % [Pa]
+p_ext = 100e3; % [Pa]
 
-R = 8.314; % The ideal gas's constant [J/mol/K]
-R_air = R * (.79*28.016 + .21*32); % [J/g/K]
-R_O2  = R * 32; % [J/g/K]
-R_CO2 = R * 44.010; % [J/g/K]
-R_H2O = R * 18.016; % [J/g/K]
-R_N2  = R * 28.016; % [J/g/K]
+R = 8.314472; % The ideal gas's constant [J/mol/K]
+R_O2  = R / 31.99800e-3; % [J/(kg*K)]
+R_N2  = R / 28.01400e-3; % [J/(kg*K)]
+R_CO2 = R / 44.00800e-3; % [J/(kg*K)]
+R_H2O = R / 18.01494e-3; % [J/(kg*K)]
+R_air = .21*R_O2 + .79*R_N2; % [J/(kg*K)]
 
-gamma  = 1.40; % Laplace coefficient of a diatomic atom [-]
+T_vect = [ones(1,300)*300,300:5000];
+Cp_O2  = janaf('O2',T_vect) *1e3; % [J/(kg*K)]
+Cp_N2  = janaf('N2',T_vect) *1e3;
+Cp_CO2 = janaf('CO2',T_vect) *1e3;
+Cp_H2O = janaf('H2O',T_vect) *1e3;
+Cp_air = .21*Cp_O2 + .79*Cp_N2;
+T_vect = 0:5000;
 
-T_vect = linspace(options.T_ext,
-C_pair = sum(
-
-% Coefficients polytropiques pour la compression et la turbine
-m_PiC = - options.eta_PiC / ((gamma-1)/gamma - options.eta_PiC);
-m_PiT = gamma/(gamma-1) / (1 - options.eta_PiT);
+gamma  = Cp_air./(Cp_air - R_air); % Laplace coefficient of a diatomic atom [-]
 
 %% Bases for the calculations of the combustion
 % In the combustion chamber where the compressed air is coming at (T_2,
@@ -152,52 +153,144 @@ m_PiT = gamma/(gamma-1) / (1 - options.eta_PiT);
 % 3 -> 4 : polytropic relaxation
 % 4 -> 1 : isobaric cooling
 
+
 % First state
-T_1 = options.T_0;
 p_1 = p_ext;
-v_1 = R_air * T_1 / p_1;
+T_1 = options.T_ext;
+h_1 = Cp_air(int16(T_1)) * (T_1 - options.T_0);
+s_1 = Cp_air(int16(T_1)) * log(T_1/options.T_0);
 
 % Second state
 p_2 = p_1 * options.r;
-v_2 = v_1 * (p_1/p_2)^(1/m_PiC);
-T_2 = v_2 * p_2 / R_air
+
+err = 10; iter = 0;
+try_1 = 500; try_2 = 1000;
+while abs(err) > 1e-3 && iter < 100
+   exp_1 = R_air / mean(Cp_air(int16(T_1):int16(try_1)));
+   T_21  = T_1 * options.r ^(exp_1/options.eta_PiC);
+   err_1 = try_1 - T_21;
+   
+   exp_2 = R_air / mean(Cp_air(int16(T_1):int16(try_2)));
+   T_22  = T_1 * options.r ^(exp_2/options.eta_PiC);
+   err_2 = try_2 - T_22;
+   
+   if err_1 < 0 && err_2 < 0
+      if err_1 > err_2
+         try_2 = try_1 *2;
+         T_2 = T_21;
+         err = err_1;
+      else
+         try_1 = try_2 *2;
+         T_2 = T_22;
+         err = err_2;
+      end
+   elseif err_1 > 0 && err_2 > 0
+      if err_1 < err_2
+         try_2 = try_1 /2;
+         T_2 = T_21;
+         err = err_1;
+      else
+         try_1 = try_2 /2;
+         T_2 = T_22;
+         err = err_2;
+      end
+   elseif abs(err_1) < abs(err_2)
+      try_2 = (try_1 + try_2) /2;
+      T_2 = T_21;
+      err = err_1;
+   else
+      try_1 = (try_1 + try_2) /2;
+      T_2 = T_22;
+      err = err_2;
+   end
+   iter = iter +1;
+end
+
+h_2 = Cp_air(int16(T_2)) * (T_2 - options.T_0);
+s_2 = Cp_air(int16(T_2)) * log(T_2/options.T_0) - R_air * log(p_2/p_ext);
 
 % Third state
 T_3 = options.T_3;
 p_3 = p_2 * options.k_cc;
-v_3 = R_air * T_3 / p_3;
+h_3 = Cp_air(int16(T_3)) * (T_3 - options.T_0);
+s_3 = Cp_air(int16(T_3)) * log(T_3/options.T_0) - R_air * log(p_3/p_ext);
 
 % Fourth state
 p_4 = p_ext;
-v_4 = v_3 * (p_3/p_4)^(1/m_PiT);
-T_4 = v_4 * p_4 / R_air;
+
+err = 10; iter = 0;
+try_1 = 500; try_2 = 1000;
+while abs(err) > 1e-3 && iter < 100
+   exp_1 = R_air / mean(Cp_air(int16(try_1):int16(T_3)));
+   T_41  = T_3 * (1/options.k_cc/options.r) ^(exp_1*options.eta_PiT);
+   err_1 = try_1 - T_41;
+
+   exp_2 = R_air / mean(Cp_air(int16(try_2):int16(T_3)));
+   T_42  = T_3 * (1/options.k_cc/options.r) ^(exp_2*options.eta_PiT);
+   err_2 = try_2 - T_42;
+
+   if err_1 < 0 && err_2 < 0
+      if err_1 > err_2
+         try_2 = try_1 *2;
+         T_4 = T_41;
+         err = err_1;
+      else
+         try_1 = try_2 *2;
+         T_4 = T_42;
+         err = err_2;
+      end
+   elseif err_1 > 0 && err_2 > 0
+      if err_1 < err_2
+         try_2 = try_1 /2;
+         T_4 = T_41;
+         err = err_1;
+      else
+         try_1 = try_2 /2;
+         T_4 = T_42;
+         err = err_2;
+      end
+   elseif abs(err_1) < abs(err_2)
+      try_2 = (try_1 + try_2) /2;
+      T_4 = T_41;
+      err = err_1;
+   else
+      try_1 = (try_1 + try_2) /2;
+      T_4 = T_42;
+      err = err_2;
+   end
+   iter = iter +1;
+end
+
+h_4 = Cp_air(int16(T_4)) * (T_4 - options.T_0);
+s_4 = Cp_air(int16(T_4)) * log(T_4/options.T_0);
+
 
 DAT = struct();
 
-DAT.T_1 = T_1 - 273.15;
-DAT.T_2 = T_2 - 273.15;
-DAT.T_3 = T_3 - 273.15;
-DAT.T_4 = T_4 - 273.15;
+DAT.T_1 = T_1 -273.15;
+DAT.T_2 = T_2 -273.15;
+DAT.T_3 = T_3 -273.15;
+DAT.T_4 = T_4 -273.15;
 
-DAT.p_1 = p_1 * 1e-5;
-DAT.p_2 = p_2 * 1e-5;
-DAT.p_3 = p_3 * 1e-5;
-DAT.p_4 = p_4 * 1e-5;
+DAT.p_1 = p_1 *1e-5;
+DAT.p_2 = p_2 *1e-5;
+DAT.p_3 = p_3 *1e-5;
+DAT.p_4 = p_4 *1e-5;
 
-DAT.h_1 = (.71*28.016 * 29.12 + .21*32 * 29.294) * (T_1 - options.T_0);
-DAT.h_2 = (.71*28.016 * 29.12 + .21*32 * 29.294) * (T_2 - options.T_0);
-DAT.h_3 = 0;
-DAT.h_4 = 0;
+DAT.h_1 = h_1 *1e-3;
+DAT.h_2 = h_2 *1e-3;
+DAT.h_3 = h_3 *1e-3;
+DAT.h_4 = h_4 *1e-3;
 
-DAT.s_1 = 0;
-DAT.s_2 = 0;
-DAT.s_3 = 0;
-DAT.s_4 = 0;
+DAT.s_1 = s_1 *1e-3;
+DAT.s_2 = s_2 *1e-3;
+DAT.s_3 = s_3 *1e-3;
+DAT.s_4 = s_4 *1e-3;
 
-DAT.e_1 = 0;
-DAT.e_2 = 0;
-DAT.e_3 = 0;
-DAT.e_4 = 0;
+DAT.e_1 = DAT.h_1 - options.T_0*DAT.s_1;
+DAT.e_2 = DAT.h_2 - options.T_0*DAT.s_2;
+DAT.e_3 = DAT.h_3 - options.T_0*DAT.s_3;
+DAT.e_4 = DAT.h_4 - options.T_0*DAT.s_4;
 
 %% Figures
 
