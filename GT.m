@@ -142,7 +142,6 @@ M_O2  = 31.99800e-3; % [kg/mol]
 M_N2  = 28.01400e-3;
 M_CO2 = 44.00800e-3;
 M_H2O = 18.01494e-3;
-M_c   = 16.04300e-3;
 M_air = .21*M_O2 + .79*M_N2;
 
 p_ext = 100e3; % [Pa]
@@ -152,20 +151,20 @@ R_O2  = R / M_O2; % [J/(kg*K)]
 R_N2  = R / M_N2; % [J/(kg*K)]
 R_CO2 = R / M_CO2; % [J/(kg*K)]
 R_H2O = R / M_H2O; % [J/(kg*K)]
-R_air = .21*R_O2 + .79*R_N2; % [J/(kg*K)]
+R_air = 287.058; % [J/(kg*K)]
 
 T_vect = [ones(1,300)*300,300:5000];
 Cp_O2  = janaf('O2',T_vect) *1e3; % [J/(kg*K)]
 Cp_N2  = janaf('N2',T_vect) *1e3;
 Cp_CO2 = janaf('CO2',T_vect) *1e3;
 Cp_H2O = janaf('H2O',T_vect) *1e3;
-Cp_air = .21*Cp_O2 + .79*Cp_N2;
-T_vect = 0:5000;
-%plot(T_vect,Cp_air)
 
-% Laplace coefficient of a diatomic atom [-]
-gamma  = Cp_air./(Cp_air - R_air);
-
+    function [X] = Cp_air(T)
+        T(T<300) = 300;
+        T(T>5000) = 5000;
+        X = .21*janaf('O2',T) + .79*janaf('N2',T);
+        X = X *1e3;
+    end
 
 %% Calculations of all states such that
 % 1 -> 2 : polytropic compression
@@ -174,7 +173,7 @@ gamma  = Cp_air./(Cp_air - R_air);
 % 4 -> 1 : isobaric coolingw
 %
 % In the combustion chamber where the compressed air is coming at (T_2,
-% p_2,h_2,s_2,e_2) at a certain flow m_air, we inject CH_4 (T_CH4,m_CH4)
+% p_2,h_2,s_2,e_2) at a certain flow m_a, we inject CH_4 (T_c,m_c)
 % so that the following transformation can happen to create energy :
 % CH_yO_x + w*(O_2 + 3.76*N_2) -> CO_2 + a*O_2 + b*H_2O + 3.76*w*N_2
 
@@ -192,30 +191,17 @@ e_1 = 0;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECOND STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-p_2 = p_1 * r;
+p_2 = p_1 *r;
 
-T_2 = 1674;
-T_2_iter = 0;
-while abs(T_2-T_2_iter) > 1e-5
-    T_2_iter = T_2;
-    Cp_air1 = mean(Cp_air(288:floor(T_1)+1));
-    Cp_air2 = mean(Cp_air(288:floor(T_2)+1));
-    exp = (T_2 - T_1) / (Cp_air2*(T_2-273.15) - Cp_air1*(T_1-273.15));
-    T_2 = T_1 * r ^(R_air*exp/eta_PiC); % cf. eq 3.19-3.22
+T_2 = 1674; T_it = 0;
+while abs(T_2-T_it) > 1e-5
+    T_it = T_2;
+    Cp_moy = integral(@Cp_air,T_1,T_2)/(T_2-T_1);
+    T_2 = T_1 * r ^(287.058/Cp_moy/eta_PiC); % cf. eq 3.19-3.22
 end
-% while abs(T_2-T_2_it) > 1e-5
-%     T_2_it  = T_2;
-%     Cp_air1 = 1.006e3;
-%     Cp_air2 = (Cp_air((T_2)));
-%     Cp_moy  = (Cp_air2*(T_2-T_0) - Cp_air1*(T_1-T_0)) / (T_2 - T_1);
-%     T_2     = T_1 * r ^(R_air/Cp_moy/eta_PiC); % cf. eq 3.19-3.22
-% end
-delete T_2_iter exp
 
-%h_2 = mean(Cp_air(273:int16(T_2))) * (T_2 - T_0);
-%h_2 = h_1 + Cp_air2*(T_2) - Cp_air1*(T_1);
-h_2 = h_1 + mean(Cp_air(floor(T_1):floor(T_2)))*(T_2-T_1);
-s_2 = s_1 + mean(Cp_air(floor(T_1):floor(T_2)))*log(T_2/T_1) - R_air*log(r);
+h_2 = h_1 + Cp_moy*(T_2 - T_1);
+s_2 = s_1 + Cp_moy*log(T_2/T_1) - R_air*log(r);
 e_2 = (h_2-h_1) - T_0*(s_2-s_1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -226,17 +212,19 @@ e_2 = (h_2-h_1) - T_0*(s_2-s_1);
 p_3 = p_2 * k_cc;
 x = 0; y = 4; LHV = 51.5e6;
 Cp_CH4 = 35.639; % Mass heat of methane at standart temperature [J/(mol*K)]
+M_c   = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
 
-syms lam
-a(lam) = (lam-1)*(1+y/4-x/2); b = y/2;
-w(lam) = lam*(1+y/4-x/2); % Stoechiometric coefficients
+%syms lam
+a = @(lam) (lam-1)*(1+y/4-x/2); b = y/2;
+w = @(lam) lam*(1+y/4-x/2); % Stoechiometric coefficients
 
 t = 273:int16(T_3);
-fun = (T_3 -273.15) * (mean(Cp_CO2(t))*M_CO2 + b*mean(Cp_H2O(t))*M_H2O ...
-    + a*mean(Cp_O2(t))*M_O2 + 3.76*w*mean(Cp_N2(t))*M_N2) ...
-    - (T_2 -273.15) * w*mean(Cp_air(273:int16(T_2)))*M_air/.21 ...
+fun = @(lam) (T_3 -273.15) * (mean(Cp_CO2(t))*M_CO2 + b*mean(Cp_H2O(t))*M_H2O ...
+    + a(lam)*mean(Cp_O2(t))*M_O2 + 3.76*w(lam)*mean(Cp_N2(t))*M_N2) ...
+    - (T_2 -273.15) * w(lam)*integral(@Cp_air,T_0,T_2)/(T_2-T_0)*M_air/.21 ...
     - 25*Cp_CH4 - LHV*M_c; % Bilan d'enthalpie sur la combustion
-lambda = double(solve(fun == 0, lam)); % Exces d'air [mol_air/mol_c]
+%lambda = double(solve(fun == 0, lam)); % Exces d'air [mol_air/mol_c]
+lambda = fsolve(fun,1);
 
 a = double(a(lambda)); w = double(w(lambda)); % [mol]
 
@@ -246,19 +234,26 @@ comp_f_H2O = b*M_H2O / comp_f_tot; % [-]
 comp_f_O2  = a*M_O2 / comp_f_tot; % [-]
 comp_f_N2  = 3.76*w*M_N2 / comp_f_tot; % [-]
 R_f = R / comp_f_tot * (1+b+a+3.76*w); % [J/(kg*K)]
-Cp_f = (comp_f_CO2*Cp_CO2 + comp_f_H2O*Cp_H2O + comp_f_O2*Cp_O2 ...
-    + comp_f_N2*Cp_N2); % [J/(kg*K)]
 
-m_a1 = (1+y/4-x/2); % [mol]
-m_ac = lambda * m_a1 * (M_air/.21)/M_c; % [-]
+    function [X] = Cp_f(T)
+        T(T<300) = 300;
+        T(T>5000) = 5000;
+
+        X = comp_f_CO2*janaf('CO2',T) + comp_f_H2O*janaf('H2O',T) + ...
+            comp_f_O2*janaf('O2',T) + comp_f_N2*janaf('N2',T); % [J/(kg*K)]
+        X = X *1e3;
+    end
+
+m_a1 = (1+y/4-x/2) * (M_air/.21)/M_c; % [mol]
+m_ac = lambda * m_a1 ; % [-]
 m_ag = (1 + 1/m_ac)^(-1); % [-]
-Q_comb = LHV / m_ac; 
+Q_comb = LHV / m_ac;
 
-%h_3 = mean(Cp_air(273:int16(T_3))) * (T_3 - T_0);
+%h_3 = h_2 + integral(@Cp_air,T_2,T_3);
 h_3 = (Q_comb + h_2) * m_ag;
 %s_3 = mean(Cp_air(273:int16(T_3))) * log(T_3/T_0) - R_air * log(p_3/p_ext);
 %s_3 = s_2 + Q_comb * log(T_3/T_2) / (T_3 - T_2);
-s_3 = mean(Cp_f(273:floor(T_3)))*log(T_3/T_0) - R_f*log(r*k_cc);
+s_3 = s_2 + integral(@Cp_f,T_2,T_3)*log(T_3/T_2)/(T_3-T_2) - R_f*log(k_cc);
 e_3 = (h_3-h_1) - T_0*(s_3-s_1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -267,62 +262,34 @@ e_3 = (h_3-h_1) - T_0*(s_3-s_1);
 
 p_4 = p_ext;
 
-err = 10; iter = 0;
-try_1 = 500; try_2 = 1000;
-while abs(err) > 1e-3 && iter < 100
-    exp_1 = R_f / mean(Cp_f(int16(try_1):int16(T_3)));
-    T_41  = T_3 * (1/k_cc/r) ^(exp_1*eta_PiT);
-    err_1 = try_1 - T_41;
-
-    exp_2 = R_f / mean(Cp_f(int16(try_2):int16(T_3)));
-    T_42  = T_3 * (1/k_cc/r) ^(exp_2*eta_PiT);
-    err_2 = try_2 - T_42;
-
-    if err_1 < 0 && err_2 < 0
-        if err_1 > err_2
-            try_2 = try_1 *2;
-            T_4 = T_41;
-            err = err_1;
-        else
-            try_1 = try_2 *2;
-            T_4 = T_42;
-            err = err_2;
-        end
-    elseif err_1 > 0 && err_2 > 0
-        if err_1 < err_2
-            try_2 = try_1 /2;
-            T_4 = T_41;
-            err = err_1;
-        else
-            try_1 = try_2 /2;
-            T_4 = T_42;
-            err = err_2;
-        end
-    elseif abs(err_1) < abs(err_2)
-        try_2 = (try_1 + try_2) /2;
-        T_4 = T_41;
-        err = err_1;
-    else
-        try_1 = (try_1 + try_2) /2;
-        T_4 = T_42;
-        err = err_2;
-    end
-    iter = iter +1;
+T_4 = 1000; T_it = 0;
+while abs(T_4 - T_it) > 1e-5
+    T_it = T_4;
+    Cp_moy = integral(@Cp_f,T_3,T_4)/(T_4-T_3);
+    T_4 = T_3 * (1/k_cc/r) ^(R_f/Cp_moy*eta_PiT);
 end
 
-h_4 = mean(Cp_f(273:int16(T_4))) * (T_4 - T_0);
-s_4 = mean(Cp_f(273:int16(T_4))) * log(T_4/T_0);
+h_4 = h_3 + Cp_moy * (T_4 - T_3);
+%s_4 = s_3 + Cp_moy*log(T_4/T_3) - R_f*log(p_4/p_3);
+s_4 = s_1 + integral(@Cp_f,T_1,T_4)*log(T_4/T_1)/(T_4-T_0);
 e_4 = (h_4-h_1) - T_0*(s_4-s_1);
 
 
 %% WORK, MASS FLOW AND EFFICIENCY
 
+eta_mec = 1 - k_mec*((h_3-h_4)/m_ag + (h_2-h_1))/((h_3-h_4)/m_ag - (h_2-h_1));
 W_m = (h_3 - h_4)/m_ag - (h_2 - h_1); % [J/kg_air]
-P_m = P_e*1e3 / (1-k_mec); % [W]
+P_m = P_e*1e3 / eta_mec; % [W]
 
-m_a = P_m / W_m;  % [kg/s]
-m_c = m_a / m_ac; % [kg/s]
-m_g = m_a / m_ag; % [kg/s]
+A = [(h_1-h_2), 0, (h_3-h_4);
+     -1, lambda*m_a1, 0;
+     (1 + lambda*m_a1), 0, -lambda*m_a1];
+b = [P_m;0;0];
+m = A\b;
+
+m_a = m(1);%P_m / W_m;  % [kg/s]
+m_c = m(2);%m_a / m_ac; % [kg/s]
+m_g = m(3);%m_a / m_ag; % [kg/s]
 
 m_CO2f = comp_f_CO2 * m_g;
 m_H2Of = comp_f_H2O * m_g;
@@ -424,16 +391,3 @@ if display == 1
 end
 end
 
-% function [x] = Cp_air(T)
-% x = zeros(1,length(T)); i = 0;
-% for t = T
-%     i = i +1;
-%     if t < 300
-%         x(i) = (janaf('O2',300)*.21 + janaf('N2',300)*.79).*1e3;
-%     elseif (t > 300) && (t < 5000)
-%         x(i) = (janaf('O2',t)*.21 + janaf('N2',t)*.79).*1e3;
-%     else
-%         x(i) = (janaf('O2',5000)*.21 + janaf('N2',5000)*.79).*1e3;
-%     end
-% end
-% end
