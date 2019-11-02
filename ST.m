@@ -28,7 +28,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 %   -options.T_0       [°C] : Reference temperature
 %   -options.TpinchSub [°C] : Temperature pinch at the subcooler
 %   -options.TpinchEx  [°C] : Temperature pinch at a heat exchanger
-%   -options.TpinchCond[°C] : Temperature pinch at condenser 
+%   -options.TpinchCond[°C] : Temperature pinch at condenser
 %   -options.Tdrum     [°C] : minimal drum temperature
 %   -options.eta_SiC    [-] : Internal pump efficiency
 %   -options.eta_SiT    [-] : Isotrenpic efficiency for Turbine. It can be a vector of 2 values :
@@ -99,7 +99,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 %  Your vector FIG will contain all the figure plot during the run of this
 %  code (whatever the size of FIG).
 
-%% YOUR WORK
+%% Parameters verification
 
 % Exemple of how to use 'nargin' to check your number of inputs
 if nargin<3
@@ -107,18 +107,122 @@ if nargin<3
     if nargin<2
         options = struct();
         if nargin<1
-            P_e = 250e3; % [kW] Puissance énergétique de l'installation
+            P_e = 35e3; % [kW] Puissance énergétique de l'installation
         end
     end
 end
 
+%   -options.nsout     [-] : Number of feed-heating
+%   -options.reheat    [-] : Number of reheating
 
-% Exemple of how to use (isfield' to check if an option has been given (or
-% not)
+if isfield(options,'T_max') %OK
+    T_max = options.T_max;
+else
+    T_max = 520;  % [°C]
+end
+
+if isfield(options,'T_cond_out') %OK
+    T_cond_out = options.T_cond_out;
+else
+    T_cond_out = 30;  % [°C]
+end
+
+if isfield(options,'p3_hp') %OK
+    p3_hp = options.p3_hp;
+else
+    p3_hp = 40e5;  % [bar]
+end
+
+%   -options.drumFlag  [-] : if =1 then drum if =0 => no drum.
+
+if isfield(options,'eta_mec')
+    eta_mec = options.eta_mec;
+else
+    eta_mec = .98;  % [-]
+end
+
+if isfield(options,'comb')
+    Tmax = options.comb.Tmax;
+    lambda = options.comb.lambda;
+    x = options.comb.x;
+    y = options.comb.y;
+else
+    Tmax = 0.0;  % [°C]
+    lambda = 1.05; % [-]
+    x = 4;
+    y = 0;
+end
+%   -options.T_exhaust [°C] : Temperature of exhaust gas out of the chimney
+
+if isfield(options,'p_4') %OK
+    p_4 = options.p_4;
+else
+    p_4 = .0503;  % [bar]
+end
+
+if isfield(options,'x_6') %OK
+    x_6 = options.x_6;
+else
+    x_6 = .908;  % [-]
+end
+
 if isfield(options,'T_0')
     T_0 = options.T_0;
 else
-    T_0 = 288.15;  % [éC]
+    T_0 = .0;  % [°C]
 end
+
+%   -options.TpinchSub [°C] : Temperature pinch at the subcooler
+%   -options.TpinchEx  [°C] : Temperature pinch at a heat exchanger
+
+if isfield(options,'TpinchCond') %OK
+    TpinchCond = options.TpinchCond;
+else
+    TpinchCond = 3;  % [°C]
+end
+
+%   -options.Tdrum     [°C] : minimal drum temperature
+
+if isfield(options,'eta_SiC')
+    eta_SiC = options.eta_SiC;
+else
+    eta_SiC = .85;  % [-]
+end
+
+if isfield(options,'eta_SiT')
+    eta_SiT = options.eta_SiT;
+else
+    eta_SiT = .88;  % [-]
+end
+
+%% Other parameters
+
+%% Calculation of all states such that
+% (b)-> 2' : Reheating
+% 2' -> 2'': Isobaric evaporation (losses!)
+% 2''-> 3  : Reheating (...)
+% 3->7->4  : Polytropic relaxation (turbine)
+% 4  -> a  : Condensation / Heat exchange with the river's water
+% 7,a->(b) : Condensation / Heat exchange between the two states and
+%            converving to the same state
+
+T_3 = T_max;
+p_3 = p3_hp;
+h_3 = XSteam('h_pT',p_3,T_3);
+s_3 = XSteam('s_pT',p_3,T_3);
+
+T_a = T_cond_out;
+p_a = XSteam('psat_T',T_a);
+h_a = XSteam('hL_T',T_a);
+s_a = XSteam('sL_T',T_a);
+
+T_4 = T_a + TpinchCond;
+p_4 = XSteam('psat_T',T_4);
+h_4 = XSteam('h_Tx',T_4,x_6);
+s_4 = XSteam('sL_T',T_4)*(1-x_6) + XSteam('sV_T',T_4)*x_6;
+
+
+
+T_b = 3;
 
 end

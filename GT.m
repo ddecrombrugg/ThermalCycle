@@ -153,17 +153,29 @@ R_CO2 = R / M_CO2; % [J/(kg*K)]
 R_H2O = R / M_H2O; % [J/(kg*K)]
 R_air = 287.058; % [J/(kg*K)]
 
-T_vect = [ones(1,300)*300,300:5000];
-Cp_O2  = janaf('O2',T_vect) *1e3; % [J/(kg*K)]
-Cp_N2  = janaf('N2',T_vect) *1e3;
-Cp_CO2 = janaf('CO2',T_vect) *1e3;
-Cp_H2O = janaf('H2O',T_vect) *1e3;
+    function [X] = Cp_CO2(T)
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = janaf('CO2',T) *1e3;
+    end
+
+    function [X] = Cp_H2O(T)
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = janaf('H2O',T) *1e3;
+    end
+
+    function [X] = Cp_O2(T)
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = janaf('O2',T) *1e3;
+    end
+
+    function [X] = Cp_N2(T)
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = janaf('N2',T) *1e3;
+    end
 
     function [X] = Cp_air(T)
-        T(T<300) = 300;
-        T(T>5000) = 5000;
-        X = .21*janaf('O2',T) + .79*janaf('N2',T);
-        X = X *1e3;
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = .21*janaf('O2',T) + .79*janaf('N2',T) *1e3;
     end
 
 %% Calculations of all states such that
@@ -209,20 +221,24 @@ e_2 = (h_2-h_1) - T_0*(s_2-s_1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% COMBUSTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-p_3 = p_2 * k_cc;
+p_3 = p_2 *k_cc;
 x = 0; y = 4; LHV = 51.5e6;
-Cp_CH4 = 35.639; % Mass heat of methane at standart temperature [J/(mol*K)]
-M_c   = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
+Cp_c = 35.639; % Mass heat of methane at standart temperature [J/(mol*K)]
+M_c  = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
 
 %syms lam
 a = @(lam) (lam-1)*(1+y/4-x/2); b = y/2;
 w = @(lam) lam*(1+y/4-x/2); % Stoechiometric coefficients
 
+%LHV = (-74.9e3 + 10*Cp_c) + (393.52e3 + integral(@Cp_O2,298,T_3)*M_CO2)...
+%    + b*(+285.10e3 + integral(@Cp_H2O,298,T_3)*M_H2O);
+LHV = (-74.9e3 + 393.52e3 + b*241.80e3)/M_c; % [J/kg]
+
 t = 273:int16(T_3);
 fun = @(lam) (T_3 -273.15) * (mean(Cp_CO2(t))*M_CO2 + b*mean(Cp_H2O(t))*M_H2O ...
     + a(lam)*mean(Cp_O2(t))*M_O2 + 3.76*w(lam)*mean(Cp_N2(t))*M_N2) ...
     - (T_2 -273.15) * w(lam)*integral(@Cp_air,T_0,T_2)/(T_2-T_0)*M_air/.21 ...
-    - 25*Cp_CH4 - LHV*M_c; % Bilan d'enthalpie sur la combustion
+    - 25*Cp_c - LHV*M_c; % Bilan d'enthalpie sur la combustion
 %lambda = double(solve(fun == 0, lam)); % Exces d'air [mol_air/mol_c]
 lambda = fsolve(fun,1);
 
@@ -297,8 +313,8 @@ m_O2f  = comp_f_O2  * m_g;
 m_N2f  = comp_f_N2  * m_g;
 
 PCS = 55695e3;
-e_c = PCS + 15 * (Cp_CH4/M_c + comp_f_O2*Cp_O2(288) - comp_f_CO2*Cp_CO2(288) - comp_f_H2O*Cp_H2O(288)) ...
-    - 288.15 * (183.1/M_c + Cp_CH4/M_c*log(288.15/273.15)) ...
+e_c = PCS + 15 * (Cp_c/M_c + comp_f_O2*Cp_O2(288) - comp_f_CO2*Cp_CO2(288) - comp_f_H2O*Cp_H2O(288)) ...
+    - 288.15 * (183.1/M_c + Cp_c/M_c*log(288.15/273.15)) ...
     - 288.15 * (202.8/M_O2 + Cp_O2(288)*log(288.15/273.15) - R_O2*log(.2064)) * comp_f_O2 ...
     + 288.15 * (210.4/M_CO2 + Cp_CO2(288)*log(288.15/273.15) - R_CO2*log(.0003)) * comp_f_CO2 ...
     + 288.15 * (69.5/M_H2O + Cp_H2O(288)*log(288.15/273.15)) * comp_f_H2O;
@@ -306,9 +322,9 @@ e_c = PCS + 15 * (Cp_CH4/M_c + comp_f_O2*Cp_O2(288) - comp_f_CO2*Cp_CO2(288) - c
 P_prim = m_c * LHV;
 
 eta_cyclen = W_m / Q_comb;
-eta_toten  = P_e*1e3 / P_prim;
+eta_toten  = eta_mec * eta_cyclen;
 eta_cyclex = P_m / (m_g*e_3 - m_a*e_2);
-eta_totex  = P_e*1e3 / m_c / e_c;
+eta_totex  = P_m*eta_mec / (m_c*e_c);
 eta_rotex  = P_m / (m_g*(e_3 - e_4) - m_a*(e_2 - e_1));
 eta_combex = (m_g*e_3 - m_a*e_2) / (m_c*e_c);
 
@@ -322,7 +338,7 @@ perte_echen  = m_g * (h_4-h_1) *1e-6;
 
 perte_mecex  = perte_mecen;
 perte_rotex  = (m_g*(e_3 - e_4) - m_a*(e_2 - e_1) - P_m) *1e-6;
-perte_combex = (m_c*e_c-(m_g*e_3-m_a*e_2)) *1e-6;
+perte_combex = m_c*e_c * (1-eta_combex) *1e-6;
 perte_echex  = m_g * (e_4-e_1) *1e-6;
 
 
