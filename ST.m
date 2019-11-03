@@ -12,24 +12,24 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 % OPTIONS is a structure containing :
 %   -options.nsout     [-] : Number of feed-heating 
 %   -options.reheat    [-] : Number of reheating
-%   -options.T_max     [°C] : Maximum steam temperature
-%   -options.T_cond_out[°C] : Condenseur cold outlet temperature
+%   -options.T_max     [Â°C] : Maximum steam temperature
+%   -options.T_cond_out[Â°C] : Condenseur cold outlet temperature
 %   -options.p3_hp     [bar] : Maximum pressure
 %   -options.drumFlag  [-] : if =1 then drum if =0 => no drum. 
 %   -options.eta_mec   [-] : mecanic efficiency of shafts bearings
 %   -options.comb is a structure containing combustion data : 
-%       -comb.Tmax     [°C] : maximum combustion temperature
+%       -comb.Tmax     [Â°C] : maximum combustion temperature
 %       -comb.lambda   [-] : air excess
 %       -comb.x        [-] : the ratio O_x/C. Example 0.05 in CH_1.2O_0.05
 %       -comb.y        [-] : the ratio H_y/C. Example 1.2 in CH_1.2O_0.05
-%   -options.T_exhaust [°C] : Temperature of exhaust gas out of the chimney
+%   -options.T_exhaust [Â°C] : Temperature of exhaust gas out of the chimney
 %   -options.p4       [bar] : High pressure after last reheating
 %   -options.x6        [-] : Vapor ratio [gaseous/liquid] (in french : titre)
-%   -options.T_0       [°C] : Reference temperature
-%   -options.TpinchSub [°C] : Temperature pinch at the subcooler
-%   -options.TpinchEx  [°C] : Temperature pinch at a heat exchanger
-%   -options.TpinchCond[°C] : Temperature pinch at condenser
-%   -options.Tdrum     [°C] : minimal drum temperature
+%   -options.T_0       [Â°C] : Reference temperature
+%   -options.TpinchSub [Â°C] : Temperature pinch at the subcooler
+%   -options.TpinchEx  [Â°C] : Temperature pinch at a heat exchanger
+%   -options.TpinchCond[Â°C] : Temperature pinch at condenser
+%   -options.Tdrum     [Â°C] : minimal drum temperature
 %   -options.eta_SiC    [-] : Internal pump efficiency
 %   -options.eta_SiT    [-] : Isotrenpic efficiency for Turbine. It can be a vector of 2 values :
 %             	             eta_SiT(1)=eta_SiT_HP,eta_SiT(2)=eta_SiT_others
@@ -65,7 +65,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 %   -datex(6) : perte_chemex [kW]
 %   -datex(7) : perte_transex[kW]
 % DAT is a matrix containing :
-% dat = {T_1       , T_2       , ...       , T_6_I,     T_6_II, ... ;  [°C]
+% dat = {T_1       , T_2       , ...       , T_6_I,     T_6_II, ... ;  [Â°C]
 %        p_1       , p_2       , ...       , p_6_I,     p_6_II, ... ;  [bar]
 %        h_1       , h_2       , ...       , h_6_I,     h_6_II, ... ;  [kJ/kg]
 %        s_1       , s_2       , ...       , s_6_I,     s_6_II, ... ;  [kJ/kg/K]
@@ -101,13 +101,12 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 
 %% Parameters verification
 
-% Exemple of how to use 'nargin' to check your number of inputs
 if nargin<3
     display = 1;
     if nargin<2
         options = struct();
         if nargin<1
-            P_e = 35e3; % [kW] Puissance énergétique de l'installation
+            P_e = 35e3; % [kW] Puissance Ã©nergÃ©tique de l'installation
         end
     end
 end
@@ -118,19 +117,19 @@ end
 if isfield(options,'T_max') %OK
     T_max = options.T_max;
 else
-    T_max = 520;  % [°C]
+    T_max = 520;  % [Â°C]
 end
 
 if isfield(options,'T_cond_out') %OK
     T_cond_out = options.T_cond_out;
 else
-    T_cond_out = 30;  % [°C]
+    T_cond_out = 30;  % [Â°C]
 end
 
 if isfield(options,'p3_hp') %OK
     p3_hp = options.p3_hp;
 else
-    p3_hp = 40e5;  % [bar]
+    p3_hp = 40;  % [bar]
 end
 
 %   -options.drumFlag  [-] : if =1 then drum if =0 => no drum.
@@ -147,12 +146,12 @@ if isfield(options,'comb')
     x = options.comb.x;
     y = options.comb.y;
 else
-    Tmax = 0.0;  % [°C]
+    Tmax = 0.0;  % [Â°C]
     lambda = 1.05; % [-]
     x = 4;
     y = 0;
 end
-%   -options.T_exhaust [°C] : Temperature of exhaust gas out of the chimney
+%   -options.T_exhaust [Â°C] : Temperature of exhaust gas out of the chimney
 
 if isfield(options,'p_4') %OK
     p_4 = options.p_4;
@@ -169,19 +168,19 @@ end
 if isfield(options,'T_0')
     T_0 = options.T_0;
 else
-    T_0 = .0;  % [°C]
+    T_0 = .0;  % [Â°C]
 end
 
-%   -options.TpinchSub [°C] : Temperature pinch at the subcooler
-%   -options.TpinchEx  [°C] : Temperature pinch at a heat exchanger
+%   -options.TpinchSub [Â°C] : Temperature pinch at the subcooler
+%   -options.TpinchEx  [Â°C] : Temperature pinch at a heat exchanger
 
 if isfield(options,'TpinchCond') %OK
     TpinchCond = options.TpinchCond;
 else
-    TpinchCond = 3;  % [°C]
+    TpinchCond = 3;  % [Â°C]
 end
 
-%   -options.Tdrum     [°C] : minimal drum temperature
+%   -options.Tdrum     [Â°C] : minimal drum temperature
 
 if isfield(options,'eta_SiC')
     eta_SiC = options.eta_SiC;
@@ -197,6 +196,69 @@ end
 
 %% Other parameters
 
+M_O2  = 31.99800e-3; % [kg/mol]
+M_N2  = 28.01400e-3;
+M_CO2 = 44.00800e-3;
+M_H2O = 18.01494e-3;
+M_air = .21*M_O2 + .79*M_N2;
+
+p_ext = 1.01325; % [bar]
+
+R = 8.314472e-3; % The ideal gas's constant [kJ/mol/K]
+R_O2  = R / M_O2; % [kJ/(kg*K)]
+R_N2  = R / M_N2; % [kJ/(kg*K)]
+R_CO2 = R / M_CO2; % [kJ/(kg*K)]
+R_H2O = R / M_H2O; % [kJ/(kg*K)]
+R_air = 287.058e-3; % [kJ/(kg*K)]
+
+    function [X] = Cp_CO2(T)
+        T = T +273.15;
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = janaf('CO2',T); % [kJ/(kg*K)]
+    end
+
+    function [X] = Cp_H2O(T)
+        T = T +273.15;
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = janaf('H2O',T);
+    end
+
+    function [X] = Cp_O2(T)
+        T = T +273.15;
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = janaf('O2',T);
+    end
+
+    function [X] = Cp_N2(T)
+        T = T +273.15;
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = janaf('N2',T);
+    end
+
+    function [X] = Cp_air(T)
+        T = T +273.15;
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = .21*janaf('O2',T) + .79*janaf('N2',T);
+    end
+
+%% Combustion
+
+M_c = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
+LHV = (-74.9 + 393.52 + b*241.80)/M_c; % [kJ/kg]
+
+a = (lambda-1)*(1+y/4-x/2); b = y/2;
+w = lambda*(1+y/4-x/2); % Stoechiometric coefficients
+
+T_c0 = 15 +273.15;
+T_c1 = Tmax +273.15;
+T_ce = T_exhaust +273.15;
+
+m_a1 = (1+y/4-x/2) * (M_air/.21)/M_c; % [mol]
+m_ac = lambda * m_a1 ; % [-]
+m_ag = (1 + 1/m_ac)^(-1); % [-]
+Q_comb = LHV / m_ac;
+
+
 %% Calculation of all states such that
 % (b)-> 2' : Reheating
 % 2' -> 2'': Isobaric evaporation (losses!)
@@ -210,18 +272,39 @@ T_3 = T_max;
 p_3 = p3_hp;
 h_3 = XSteam('h_pT',p_3,T_3);
 s_3 = XSteam('s_pT',p_3,T_3);
+e_3 = h_3 - (T_0+273.15)*s_3;
+state_3 = [T_3;p_3;h_3;s_3;e_3;NaN]
 
-T_a = T_cond_out;
-p_a = XSteam('psat_T',T_a);
-h_a = XSteam('hL_T',T_a);
-s_a = XSteam('sL_T',T_a);
-
-T_4 = T_a + TpinchCond;
-p_4 = XSteam('psat_T',T_4);
-h_4 = XSteam('h_Tx',T_4,x_6);
-s_4 = XSteam('sL_T',T_4)*(1-x_6) + XSteam('sV_T',T_4)*x_6;
+T_5 = T_3;
 
 
+T_4 = 1000; iter = 0;
+while abs(T_4-iter) > 1e-5
+    iter = T_4;
+    Cp_moy = integral(@Cp_H2O,T_3+273.15,T_4+273.15)/(T_4-T_3);
+    T_4 = (T_3 +273.15) * (p_4/p_3) ^(R_H2O/Cp_moy*eta_SiT) -273.15
+end
+
+T_7 = T_cond_out;
+p_7 = XSteam('psat_T',T_7);
+h_7 = XSteam('hL_T',T_7);
+s_7 = XSteam('sL_T',T_7);
+e_7 = h_7 - (T_0+273.15)*s_7;
+state_a = [T_7;p_7;h_7;s_7;e_7;.0]
+
+T_6 = T_7 + TpinchCond;
+p_6 = XSteam('psat_T',T_6)
+h_6 = XSteam('h_Tx',T_6,x_6);
+s_6 = XSteam('sL_T',T_6)*(1-x_6) + XSteam('sV_T',T_6)*x_6;
+e_6 = h_6 - (T_0+273.15)*s_6;
+state_6 = [T_6;p_6;h_6;s_6;e_6;x_6]
+
+X = 1; iter = 0;
+while (X - iter) > 1e-10
+    iter = X;
+
+    X = (h_b - h_7)/(h_7-h_b)
+end
 
 T_b = 3;
 

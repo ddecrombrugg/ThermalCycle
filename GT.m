@@ -175,7 +175,7 @@ R_air = 287.058; % [J/(kg*K)]
 
     function [X] = Cp_air(T)
         T(T<300) = 300; T(T>5000) = 5000;
-        X = .21*janaf('O2',T) + .79*janaf('N2',T) *1e3;
+        X = (.21*janaf('O2',T) + .79*janaf('N2',T)) *1e3;
     end
 
 %% Calculations of all states such that
@@ -230,8 +230,6 @@ M_c  = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
 a = @(lam) (lam-1)*(1+y/4-x/2); b = y/2;
 w = @(lam) lam*(1+y/4-x/2); % Stoechiometric coefficients
 
-%LHV = (-74.9e3 + 10*Cp_c) + (393.52e3 + integral(@Cp_O2,298,T_3)*M_CO2)...
-%    + b*(+285.10e3 + integral(@Cp_H2O,298,T_3)*M_H2O);
 LHV = (-74.9e3 + 393.52e3 + b*241.80e3)/M_c; % [J/kg]
 
 t = 273:int16(T_3);
@@ -239,8 +237,7 @@ fun = @(lam) (T_3 -273.15) * (mean(Cp_CO2(t))*M_CO2 + b*mean(Cp_H2O(t))*M_H2O ..
     + a(lam)*mean(Cp_O2(t))*M_O2 + 3.76*w(lam)*mean(Cp_N2(t))*M_N2) ...
     - (T_2 -273.15) * w(lam)*integral(@Cp_air,T_0,T_2)/(T_2-T_0)*M_air/.21 ...
     - 25*Cp_c - LHV*M_c; % Bilan d'enthalpie sur la combustion
-%lambda = double(solve(fun == 0, lam)); % Exces d'air [mol_air/mol_c]
-lambda = fsolve(fun,1);
+lambda = fsolve(fun,1); % Exces d'air [mol_air/mol_c]
 
 a = double(a(lambda)); w = double(w(lambda)); % [mol]
 
