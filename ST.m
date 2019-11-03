@@ -146,12 +146,17 @@ if isfield(options,'comb')
     x = options.comb.x;
     y = options.comb.y;
 else
-    Tmax = 0.0;  % [°C]
+    Tmax = 1000;  % [°C]
     lambda = 1.05; % [-]
     x = 4;
     y = 0;
 end
-%   -options.T_exhaust [°C] : Temperature of exhaust gas out of the chimney
+
+if isfield(options,'T_exhaust')
+    T_exhaust = options.T_exhaust;
+else
+    T_exhaust = 300;
+end
 
 if isfield(options,'p_4') %OK
     p_4 = options.p_4;
@@ -240,23 +245,49 @@ R_air = 287.058e-3; % [kJ/(kg*K)]
         T(T<300) = 300; T(T>5000) = 5000;
         X = .21*janaf('O2',T) + .79*janaf('N2',T);
     end
+%{
+    function [X] = Cp_vap(p,T)
+        X = zeros(size(p));
+        for i = 1:length(p(:,1))
+            for j = 1:length(p(i,:))
+                X(i,j) = XSteam('Cp_pT',p(i,j),T(i,j));
+            end
+        end
+    end
+%}
 
-%% Combustion
-
-M_c = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
-LHV = (-74.9 + 393.52 + b*241.80)/M_c; % [kJ/kg]
+%% COMBUSTION
 
 a = (lambda-1)*(1+y/4-x/2); b = y/2;
 w = lambda*(1+y/4-x/2); % Stoechiometric coefficients
 
+M_c = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
+LHV = (-74.9 + 393.52 + b*241.80)/M_c; % [kJ/kg]
+
 T_c0 = 15 +273.15;
-T_c1 = Tmax +273.15;
-T_ce = T_exhaust +273.15;
+T_c1 = Tmax +273.15; % Temperature after combustion [K]
+T_ce = T_exhaust +273.15; % Temperature after the heat exchange [K]
+
+comp_f_tot = M_CO2 + b*M_H2O + a*M_O2 + 3.76*w*M_N2; % [kg]
+comp_f_CO2 = M_CO2 / comp_f_tot; % [-]
+comp_f_H2O = b*M_H2O / comp_f_tot; % [-]
+comp_f_O2  = a*M_O2 / comp_f_tot; % [-]
+comp_f_N2  = 3.76*w*M_N2 / comp_f_tot; % [-]
+R_f = R / comp_f_tot * (1+b+a+3.76*w); % [J/(kg*K)]
+
+    function [X] = Cp_f(T)
+        T = T +273.15;
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = comp_f_CO2*janaf('CO2',T) + comp_f_H2O*janaf('H2O',T) + ...
+            comp_f_O2*janaf('O2',T) + comp_f_N2*janaf('N2',T); % [kJ/(kg*K)]
+    end
 
 m_a1 = (1+y/4-x/2) * (M_air/.21)/M_c; % [mol]
 m_ac = lambda * m_a1 ; % [-]
 m_ag = (1 + 1/m_ac)^(-1); % [-]
 Q_comb = LHV / m_ac;
+
+%integral(@Cp_f,Tmax,T_exhaust)
 
 
 %% Calculation of all states such that
@@ -278,10 +309,13 @@ state_3 = [T_3;p_3;h_3;s_3;e_3;NaN]
 T_5 = T_3;
 
 
-T_4 = 1000; iter = 0;
+T_4 = 300; iter = 0;
 while abs(T_4-iter) > 1e-5
-    iter = T_4;
-    Cp_moy = integral(@Cp_H2O,T_3+273.15,T_4+273.15)/(T_4-T_3);
+    iter = T_4
+    p_4 = XSteam('psat_T',T_4)
+    %Cp_moy = integral2(@Cp_vap,p_3,p_4,T_3,T_4)/(T_3-T_4)
+    disp([XSteam('Cp_pT',p_4,T_4)*(T_4+273.15),XSteam('Cp_pT',p_3,T_3)*(T_3+273.15)]);
+    Cp_moy = (XSteam('Cp_pT',p_4,T_4)*(T_4+273.15) - XSteam('Cp_pT',p_3,T_3)*(T_3+273.15))/(T_4-T_3)
     T_4 = (T_3 +273.15) * (p_4/p_3) ^(R_H2O/Cp_moy*eta_SiT) -273.15
 end
 
@@ -290,14 +324,14 @@ p_7 = XSteam('psat_T',T_7);
 h_7 = XSteam('hL_T',T_7);
 s_7 = XSteam('sL_T',T_7);
 e_7 = h_7 - (T_0+273.15)*s_7;
-state_a = [T_7;p_7;h_7;s_7;e_7;.0]
+state_a = [T_7;p_7;h_7;s_7;e_7;.0];
 
 T_6 = T_7 + TpinchCond;
 p_6 = XSteam('psat_T',T_6)
 h_6 = XSteam('h_Tx',T_6,x_6);
 s_6 = XSteam('sL_T',T_6)*(1-x_6) + XSteam('sV_T',T_6)*x_6;
 e_6 = h_6 - (T_0+273.15)*s_6;
-state_6 = [T_6;p_6;h_6;s_6;e_6;x_6]
+state_6 = [T_6;p_6;h_6;s_6;e_6;x_6];
 
 X = 1; iter = 0;
 while (X - iter) > 1e-10
