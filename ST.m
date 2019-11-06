@@ -309,9 +309,16 @@ state_3 = [T_3;p_3;h_3;s_3;e_3;NaN]
 T_5 = T_3;
 
 
-T_4 = 300; iter = 0;
-while abs(T_4-iter) > 1e-5
-    iter = T_4
+p_4 = 10; iter = 0;
+while abs(p_4-iter) > 1e-9
+    iter = p_4;
+    s_4s = s_3;
+    h_4s = XSteam('h_ps',p_4,s_4s);
+    h_4  = h_3 - eta_SiT*(h_3-h_4s);
+    T_4  = XSteam('T_ph',p_4,h_4);
+    s_4  = 1
+    p_4  = XSteam('p_hs',h_4,s_4);
+
     p_4 = XSteam('psat_T',T_4)
     %Cp_moy = integral2(@Cp_vap,p_3,p_4,T_3,T_4)/(T_3-T_4)
     disp([XSteam('Cp_pT',p_4,T_4)*(T_4+273.15),XSteam('Cp_pT',p_3,T_3)*(T_3+273.15)]);
@@ -327,7 +334,7 @@ e_7 = h_7 - (T_0+273.15)*s_7;
 state_a = [T_7;p_7;h_7;s_7;e_7;.0];
 
 T_6 = T_7 + TpinchCond;
-p_6 = XSteam('psat_T',T_6)
+p_6 = XSteam('psat_T',T_6);
 h_6 = XSteam('h_Tx',T_6,x_6);
 s_6 = XSteam('sL_T',T_6)*(1-x_6) + XSteam('sV_T',T_6)*x_6;
 e_6 = h_6 - (T_0+273.15)*s_6;

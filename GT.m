@@ -222,7 +222,7 @@ e_2 = (h_2-h_1) - T_0*(s_2-s_1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 p_3 = p_2 *k_cc;
-x = 0; y = 4; LHV = 51.5e6;
+x = 0; y = 4; LHV = 50.15e6;
 Cp_c = 35.639; % Mass heat of methane at standart temperature [J/(mol*K)]
 M_c  = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
 
@@ -231,6 +231,7 @@ a = @(lam) (lam-1)*(1+y/4-x/2); b = y/2;
 w = @(lam) lam*(1+y/4-x/2); % Stoechiometric coefficients
 
 LHV = (-74.9e3 + 393.52e3 + b*241.80e3)/M_c; % [J/kg]
+LHV = 50.15e6;
 
 t = 273:int16(T_3);
 fun = @(lam) (T_3 -273.15) * (mean(Cp_CO2(t))*M_CO2 + b*mean(Cp_H2O(t))*M_H2O ...
@@ -336,7 +337,7 @@ perte_echen  = m_g * (h_4-h_1) *1e-6;
 perte_mecex  = perte_mecen;
 perte_rotex  = (m_g*(e_3 - e_4) - m_a*(e_2 - e_1) - P_m) *1e-6;
 perte_combex = m_c*e_c * (1-eta_combex) *1e-6;
-perte_echex  = m_g * (e_4-e_1) *1e-6;
+perte_echex  = (m_g*e_4 - m_a*e_1) *1e-6;
 
 
 %% RESULTS
