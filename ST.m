@@ -117,22 +117,27 @@ end
 if isfield(options,'T_max') %OK
     T_max = options.T_max;
 else
-    T_max = 520;  % [°C]
+    T_max = 565;  % [°C]
 end
 
 if isfield(options,'T_cond_out') %OK
     T_cond_out = options.T_cond_out;
 else
-    T_cond_out = 30;  % [°C]
+    T_cond_out = 32;  % [°C]
 end
 
 if isfield(options,'p3_hp') %OK
     p3_hp = options.p3_hp;
 else
-    p3_hp = 40;  % [bar]
+    p3_hp = 350;  % [bar]
 end
 
 %   -options.drumFlag  [-] : if =1 then drum if =0 => no drum.
+if isfield(options,'drumFlag')
+    drumFlag = options.drumFlag;
+else
+    drumFlag = 1;  % [-]
+end
 
 if isfield(options,'eta_mec')
     eta_mec = options.eta_mec;
@@ -146,16 +151,16 @@ if isfield(options,'comb')
     x = options.comb.x;
     y = options.comb.y;
 else
-    Tmax = 1000;  % [°C]
-    lambda = 1.05; % [-]
-    x = 4;
-    y = 0;
+    Tmax = 1000;   % [°C]
+    lambda = 1.05;  % [-]
+    x = 4;  % [-]
+    y = 0;  % [-]
 end
 
 if isfield(options,'T_exhaust')
     T_exhaust = options.T_exhaust;
 else
-    T_exhaust = 300;
+    T_exhaust = 120;  % [°C]
 end
 
 if isfield(options,'p_4') %OK
@@ -167,22 +172,28 @@ end
 if isfield(options,'x_6') %OK
     x_6 = options.x_6;
 else
-    x_6 = .908;  % [-]
+    x_6 = .89;  % [-]
 end
 
 if isfield(options,'T_0')
     T_0 = options.T_0;
 else
-    T_0 = .0;  % [°C]
+    T_0 = 15;  % [°C]
 end
 
 %   -options.TpinchSub [°C] : Temperature pinch at the subcooler
+
 %   -options.TpinchEx  [°C] : Temperature pinch at a heat exchanger
+if isfield(options,'TpinchEx') %OK
+    TpinchEx = options.TpinchEx;
+else
+    TpinchEx = 269.2;  % [°C]
+end
 
 if isfield(options,'TpinchCond') %OK
     TpinchCond = options.TpinchCond;
 else
-    TpinchCond = 3;  % [°C]
+    TpinchCond = 1;  % [°C]
 end
 
 %   -options.Tdrum     [°C] : minimal drum temperature
@@ -201,19 +212,19 @@ end
 
 %% Other parameters
 
-M_O2  = 31.99800e-3; % [kg/mol]
-M_N2  = 28.01400e-3;
-M_CO2 = 44.00800e-3;
-M_H2O = 18.01494e-3;
-M_air = .21*M_O2 + .79*M_N2;
+M_O2  = 31.99800e-3;  % [kg/mol]
+M_N2  = 28.01400e-3;  % [kg/mol]
+M_CO2 = 44.00800e-3;  % [kg/mol]
+M_H2O = 18.01494e-3;  % [kg/mol]
+M_air = .21*M_O2 + .79*M_N2;  % [kg/mol]
 
-p_ext = 1.01325; % [bar]
+p_ext = 1.01325;  % [bar]
 
-R = 8.314472e-3; % The ideal gas's constant [kJ/mol/K]
-R_O2  = R / M_O2; % [kJ/(kg*K)]
-R_N2  = R / M_N2; % [kJ/(kg*K)]
-R_CO2 = R / M_CO2; % [kJ/(kg*K)]
-R_H2O = R / M_H2O; % [kJ/(kg*K)]
+R = 8.314472e-3;  % The ideal gas's constant [kJ/mol/K]
+R_O2  = R / M_O2;   % [kJ/(kg*K)]
+R_N2  = R / M_N2;   % [kJ/(kg*K)]
+R_CO2 = R / M_CO2;  % [kJ/(kg*K)]
+R_H2O = R / M_H2O;  % [kJ/(kg*K)]
 R_air = 287.058e-3; % [kJ/(kg*K)]
 
     function [X] = Cp_CO2(T)
@@ -245,7 +256,7 @@ R_air = 287.058e-3; % [kJ/(kg*K)]
         T(T<300) = 300; T(T>5000) = 5000;
         X = .21*janaf('O2',T) + .79*janaf('N2',T);
     end
-%{
+
     function [X] = Cp_vap(p,T)
         X = zeros(size(p));
         for i = 1:length(p(:,1))
@@ -254,14 +265,14 @@ R_air = 287.058e-3; % [kJ/(kg*K)]
             end
         end
     end
-%}
+
 
 %% COMBUSTION
 
 a = (lambda-1)*(1+y/4-x/2); b = y/2;
 w = lambda*(1+y/4-x/2); % Stoechiometric coefficients
 
-M_c = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
+M_c = (12.01+1.01*y+16*x)*1e-3; % Molar mass of carburant [kg/mol]
 LHV = (-74.9 + 393.52 + b*241.80)/M_c; % [kJ/kg]
 
 T_c0 = 15 +273.15;
@@ -289,64 +300,72 @@ Q_comb = LHV / m_ac;
 
 %integral(@Cp_f,Tmax,T_exhaust)
 
+%% REFERENCE STATE
 
-%% Calculation of all states such that
-% (b)-> 2' : Reheating
-% 2' -> 2'': Isobaric evaporation (losses!)
-% 2''-> 3  : Reheating (...)
-% 3->7->4  : Polytropic relaxation (turbine)
-% 4  -> a  : Condensation / Heat exchange with the river's water
-% 7,a->(b) : Condensation / Heat exchange between the two states and
-%            converving to the same state
+p_0 = XSteam('psat_T',T_0);
+h_0 = XSteam('hV_T',T_0);
+s_0 = XSteam('sV_T',T_0);
+e_0 = 0;
+
+%% CYCLE
 
 T_3 = T_max;
-p_3 = p3_hp;
+
+p_2 = p3_hp;
+T_2 = T_3 - TpinchEx;
+h_2 = XSteam('h_pT',p_2,T_2);
+s_2 = XSteam('s_pT',p_2,T_2);
+e_2 = (h_2-h_0) - (T_0+273.15)*(s_2-s_0);
+state_2 = [T_2;p_2;h_2;s_2;e_2;NaN];
+
+p_3 = p_2;
 h_3 = XSteam('h_pT',p_3,T_3);
 s_3 = XSteam('s_pT',p_3,T_3);
-e_3 = h_3 - (T_0+273.15)*s_3;
-state_3 = [T_3;p_3;h_3;s_3;e_3;NaN]
-
-T_5 = T_3;
-
-
-p_4 = 10; iter = 0;
-while abs(p_4-iter) > 1e-9
-    iter = p_4;
-    s_4s = s_3;
-    h_4s = XSteam('h_ps',p_4,s_4s);
-    h_4  = h_3 - eta_SiT*(h_3-h_4s);
-    T_4  = XSteam('T_ph',p_4,h_4);
-    s_4  = 1
-    p_4  = XSteam('p_hs',h_4,s_4);
-
-    p_4 = XSteam('psat_T',T_4)
-    %Cp_moy = integral2(@Cp_vap,p_3,p_4,T_3,T_4)/(T_3-T_4)
-    disp([XSteam('Cp_pT',p_4,T_4)*(T_4+273.15),XSteam('Cp_pT',p_3,T_3)*(T_3+273.15)]);
-    Cp_moy = (XSteam('Cp_pT',p_4,T_4)*(T_4+273.15) - XSteam('Cp_pT',p_3,T_3)*(T_3+273.15))/(T_4-T_3)
-    T_4 = (T_3 +273.15) * (p_4/p_3) ^(R_H2O/Cp_moy*eta_SiT) -273.15
-end
+e_3 = (h_3-h_0) - (T_0+273.15)*(s_3-s_0);
+state_3 = [T_3;p_3;h_3;s_3;e_3;NaN];
 
 T_7 = T_cond_out;
 p_7 = XSteam('psat_T',T_7);
 h_7 = XSteam('hL_T',T_7);
 s_7 = XSteam('sL_T',T_7);
-e_7 = h_7 - (T_0+273.15)*s_7;
-state_a = [T_7;p_7;h_7;s_7;e_7;.0];
+e_7 = (h_7-h_0) - (T_0+273.15)*(s_7-s_0);
+state_7 = [T_7;p_7;h_7;s_7;e_7;.0];
 
 T_6 = T_7 + TpinchCond;
 p_6 = XSteam('psat_T',T_6);
 h_6 = XSteam('h_Tx',T_6,x_6);
 s_6 = XSteam('sL_T',T_6)*(1-x_6) + XSteam('sV_T',T_6)*x_6;
-e_6 = h_6 - (T_0+273.15)*s_6;
-state_6 = [T_6;p_6;h_6;s_6;e_6;x_6];
+e_6 = (h_6-h_0) - (T_0+273.15)*(s_6-s_0);
+state_6 = [T_6;p_6;h_6;s_6;e_6;x_6]
 
-X = 1; iter = 0;
-while (X - iter) > 1e-10
-    iter = X;
+T_5 = T_3;
+s_5s = s_6;
+p_5 = 50; iter = 0;
+while abs(p_5-iter) > 1e-5
+    iter = p_5;
+    h_5s = XSteam('h_ps',p_5,s_5s);
+    h_5  = h_6 + eta_SiT*(h_5s-h_6);
+    s_5  = XSteam('s_pT',p_5,T_5);
+    p_5  = XSteam('p_hs',h_5,s_5)
 
-    X = (h_b - h_7)/(h_7-h_b)
+    % p_4 = XSteam('psat_T',T_4)
+    % %Cp_moy = integral2(@Cp_vap,p_3,p_4,T_3,T_4)/(T_3-T_4)
+    % disp([XSteam('Cp_pT',p_4,T_4)*(T_4+273.15),XSteam('Cp_pT',p_3,T_3)*(T_3+273.15)]);
+    % Cp_moy = (XSteam('Cp_pT',p_4,T_4)*(T_4+273.15) - XSteam('Cp_pT',p_3,T_3)*(T_3+273.15))/(T_4-T_3)
+    % T_4 = (T_3 +273.15) * (p_4/p_3) ^(R_H2O/Cp_moy*eta_SiT) -273.15
 end
+e_5 = (h_5-h_0) - (T_0+273.15)*(s_5-s_0);
+state_5 = [T_5;p_5;h_5;s_5;e_5;NaN];
 
-T_b = 3;
+%{
+X_6i = zeros(1,nso
+ut);
+for n = 1:nsout
+    X_6i(n) = (1 + sum(X_6i)) * (3);
+end
+%}
+
+
+disp([state_2,state_3,state_5,state_6,state_7])
 
 end
