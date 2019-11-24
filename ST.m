@@ -104,6 +104,8 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 if nargin<3
     display = 1;
     if nargin<2
+        constr = 'pressure';
+        %constr = 'vap_ratio';
         options = struct();
         if nargin<1
             P_e = 35e3; % [kW] Puissance énergétique de l'installation
@@ -111,103 +113,145 @@ if nargin<3
     end
 end
 
-%   -options.nsout     [-] : Number of feed-heating
-%   -options.reheat    [-] : Number of reheating
+% options.nsout [-] : Number of feed-heating
+if isfield(options,'nsout') %OK
+    nsout = options.nsout;
+else
+    nsout = 8;
+end
 
+% options.reheat [-] : Number of reheating
+if isfield(options,'reheat') %OK
+    reheat = options.reheat;
+else
+    reheat = 1;
+end
+
+% options.T_max [°C] : Maximum steam temperature
 if isfield(options,'T_max') %OK
     T_max = options.T_max;
 else
-    T_max = 565;  % [°C]
+    T_max = 565;
 end
 
+% options.T_cond_out [°C] : Condenseur cold outlet temperature
 if isfield(options,'T_cond_out') %OK
     T_cond_out = options.T_cond_out;
 else
-    T_cond_out = 32;  % [°C]
+    T_cond_out = 26;
 end
 
+% options.p3_hp [bar] : Maximum pressure
 if isfield(options,'p3_hp') %OK
     p3_hp = options.p3_hp;
 else
-    p3_hp = 350;  % [bar]
+    p3_hp = 310;
 end
 
-%   -options.drumFlag  [-] : if =1 then drum if =0 => no drum.
+% options.drumFlag [-] : if =1 then drum if =0 => no drum.
 if isfield(options,'drumFlag')
     drumFlag = options.drumFlag;
 else
-    drumFlag = 1;  % [-]
+    drumFlag = 1;
 end
 
+%   -options.eta_mec [-] : mecanic efficiency of shafts bearings
 if isfield(options,'eta_mec')
     eta_mec = options.eta_mec;
 else
-    eta_mec = .98;  % [-]
+    eta_mec = .98;
 end
 
+% options.comb is a structure containing combustion data : 
+%   -comb.Tmax     [°C] : maximum combustion temperature
+%   -comb.lambda   [-] : air excess
+%   -comb.x        [-] : the ratio O_x/C. Example 0.05 in CH_1.2O_0.05
+%   -comb.y        [-] : the ratio H_y/C. Example 1.2 in CH_1.2O_0.05
 if isfield(options,'comb')
     Tmax = options.comb.Tmax;
     lambda = options.comb.lambda;
     x = options.comb.x;
     y = options.comb.y;
 else
-    Tmax = 1000;   % [°C]
-    lambda = 1.05;  % [-]
-    x = 4;  % [-]
-    y = 0;  % [-]
+    Tmax = 1000;
+    lambda = 1.05;
+    x = 4;
+    y = 0;
 end
 
+% options.T_exhaust [°C] : Temperature of exhaust gas out of the chimney
 if isfield(options,'T_exhaust')
     T_exhaust = options.T_exhaust;
 else
-    T_exhaust = 120;  % [°C]
+    T_exhaust = 120;
 end
 
-if isfield(options,'p_4') %OK
+% options.p4 [bar] : High pressure after last reheating
+% options.x6 [-] : Vapor ratio [gaseous/liquid] (in french : titre)
+if isfield(options,'p_4') && ~isfield(options,'x_6')
     p_4 = options.p_4;
-else
-    p_4 = .0503;  % [bar]
-end
-
-if isfield(options,'x_6') %OK
+    constr = 'pressure';
+elseif isfield(options,'x_6')
     x_6 = options.x_6;
+    constr = 'vap_ratio';
+elseif constr == 'pressure'
+    p_4 = 70;
 else
-    x_6 = .89;  % [-]
+    x_6 = .8633;
 end
 
+% options.T_0 [°C] : Reference temperature
 if isfield(options,'T_0')
     T_0 = options.T_0;
 else
-    T_0 = 15;  % [°C]
+    T_0 = 15;
 end
 
-%   -options.TpinchSub [°C] : Temperature pinch at the subcooler
+% options.TpinchSub [°C] : Temperature pinch at the subcooler
 
-%   -options.TpinchEx  [°C] : Temperature pinch at a heat exchanger
+
+% options.TpinchEx [°C] : Temperature pinch at a heat exchanger
 if isfield(options,'TpinchEx') %OK
     TpinchEx = options.TpinchEx;
 else
-    TpinchEx = 269.2;  % [°C]
+    TpinchEx = 269.2;
 end
 
+% options.TpinchCond [°C] : Temperature pinch at condenser
 if isfield(options,'TpinchCond') %OK
     TpinchCond = options.TpinchCond;
 else
-    TpinchCond = 1;  % [°C]
+    TpinchCond = 5;
 end
 
-%   -options.Tdrum     [°C] : minimal drum temperature
+% options.Tdrum [°C] : minimal drum temperature
+if isfield(options,'Tdrum')
+    Tdrum = options.Tdrum;
+else
+    Tdrum = 123.3;
+end
 
+% options.eta_SiC [-] : Internal pump efficiency
 if isfield(options,'eta_SiC')
     eta_SiC = options.eta_SiC;
 else
     eta_SiC = .85;  % [-]
 end
 
+%   -options.eta_SiT [-] : Isotrenpic efficiency for Turbine. It can be a vector of 2 values :
+%                          eta_SiT(1)=eta_SiT_HP,eta_SiT(2)=eta_SiT_others
 if isfield(options,'eta_SiT')
     eta_SiT = options.eta_SiT;
 else
-    eta_SiT = .88;  % [-]
+    eta_SiT = .927;  % [-]
+end
+
+if length(eta_SiT) == 2
+    eta_SiT1 = eta_SiT(1);
+    eta_SiT2 = eta_SiT(2);
+else
+    eta_SiT1 = eta_SiT;
+    eta_SiT2 = eta_SiT;
 end
 
 %% Other parameters
@@ -309,63 +353,191 @@ e_0 = 0;
 
 %% CYCLE
 
-T_3 = T_max;
 
+%{
 p_2 = p3_hp;
 T_2 = T_3 - TpinchEx;
 h_2 = XSteam('h_pT',p_2,T_2);
 s_2 = XSteam('s_pT',p_2,T_2);
 e_2 = (h_2-h_0) - (T_0+273.15)*(s_2-s_0);
 state_2 = [T_2;p_2;h_2;s_2;e_2;NaN];
+%}
 
-p_3 = p_2;
+T_3 = T_max; % given
+p_3 = p3_hp; % given
 h_3 = XSteam('h_pT',p_3,T_3);
 s_3 = XSteam('s_pT',p_3,T_3);
 e_3 = (h_3-h_0) - (T_0+273.15)*(s_3-s_0);
 state_3 = [T_3;p_3;h_3;s_3;e_3;NaN];
 
-T_7 = T_cond_out;
+T_7 = T_cond_out + TpinchCond;
 p_7 = XSteam('psat_T',T_7);
 h_7 = XSteam('hL_T',T_7);
 s_7 = XSteam('sL_T',T_7);
 e_7 = (h_7-h_0) - (T_0+273.15)*(s_7-s_0);
 state_7 = [T_7;p_7;h_7;s_7;e_7;.0];
 
-T_6 = T_7 + TpinchCond;
-p_6 = XSteam('psat_T',T_6);
-h_6 = XSteam('h_Tx',T_6,x_6);
-s_6 = XSteam('sL_T',T_6)*(1-x_6) + XSteam('sV_T',T_6)*x_6;
-e_6 = (h_6-h_0) - (T_0+273.15)*(s_6-s_0);
-state_6 = [T_6;p_6;h_6;s_6;e_6;x_6]
+if constr == 'pressure'
+    h_4s = XSteam('h_ps',p_4,s_3);
+    h_4  = h_3 - eta_SiT1 * (h_3 - h_4s); % eq2.9
+    T_4  = XSteam('T_ph',p_4,h_4);
+    s_4  = XSteam('s_ph',p_4,h_4);
+    e_4 = (h_4-h_0) - (T_0+273.15)*(s_4-s_0);
+    state_4 = [T_4;p_4;h_4;s_4;e_4;NaN];
 
-T_5 = T_3;
-s_5s = s_6;
-p_5 = 50; iter = 0;
-while abs(p_5-iter) > 1e-5
-    iter = p_5;
-    h_5s = XSteam('h_ps',p_5,s_5s);
+    p_5 = p_4; % isobare
+    T_5 = T_max; % réchauffeur
+    h_5 = XSteam('h_pT',p_5,T_5);
+    s_5 = XSteam('s_pT',p_5,T_5);
+    e_5 = (h_5-h_0) - (T_0+273.15)*(s_5-s_0);
+    state_5 = [T_5;p_5;h_5;s_5;e_5;NaN];
+
+    T_6  = T_7;
+    p_6  = XSteam('psat_T',T_6);
+    h_6s = XSteam('h_ps',p_6,s_5);
+    h_6  = h_5 - eta_SiT2 * (h_5 - h_6s); % eq2.9
+    s_6  = XSteam('s_ph',p_6,h_6);
+    e_6  = (h_6-h_0) - (T_0+273.15)*(s_6-s_0);
+    x_6  = XSteam('x_ph',p_6,h_6);
+    state_6 = [T_6;p_6;h_6;s_6;e_6;x_6];
+else
+    T_6 = T_7;
+    p_6 = XSteam('psat_T',T_6);
+    h_6 = XSteam('h_Tx',T_6,x_6);
+    s_6 = XSteam('sL_T',T_6)*(1-x_6) + XSteam('sV_T',T_6)*x_6;
+    e_6 = (h_6-h_0) - (T_0+273.15)*(s_6-s_0);
+    state_6 = [T_6;p_6;h_6;s_6;e_6;x_6];
+
+    T_5 = T_3;
+    s_5s = s_6;
+    h_5s = adjust(T_5,[1e3,5e3],s_5s);
     h_5  = h_6 + eta_SiT*(h_5s-h_6);
-    s_5  = XSteam('s_pT',p_5,T_5);
-    p_5  = XSteam('p_hs',h_5,s_5)
+    s_5  = adjust(T_5,h_5,[7,10]);
+    p_5  = XSteam('p_hs',h_5,s_5);
+    e_5 = (h_5-h_0) - (T_0+273.15)*(s_5-s_0);
+    state_5 = [T_5;p_5;h_5;s_5;e_5;NaN];
 
-    % p_4 = XSteam('psat_T',T_4)
-    % %Cp_moy = integral2(@Cp_vap,p_3,p_4,T_3,T_4)/(T_3-T_4)
-    % disp([XSteam('Cp_pT',p_4,T_4)*(T_4+273.15),XSteam('Cp_pT',p_3,T_3)*(T_3+273.15)]);
-    % Cp_moy = (XSteam('Cp_pT',p_4,T_4)*(T_4+273.15) - XSteam('Cp_pT',p_3,T_3)*(T_3+273.15))/(T_4-T_3)
-    % T_4 = (T_3 +273.15) * (p_4/p_3) ^(R_H2O/Cp_moy*eta_SiT) -273.15
+    p_4  = p_5;
+    h_4s = XSteam('h_ps',p_4,s_3);
+    h_4  = h_3 - eta_SiT1 * (h_3 - h_4s); % eq2.9
+    T_4  = XSteam('T_ph',p_4,h_4);
+    s_4  = XSteam('s_ph',p_4,h_4);
+    e_4  = (h_4-h_0) - (T_0+273.15)*(s_4-s_0);
+    state_4 = [T_4;p_4;h_4;s_4;e_4;NaN];
 end
-e_5 = (h_5-h_0) - (T_0+273.15)*(s_5-s_0);
-state_5 = [T_5;p_5;h_5;s_5;e_5;NaN];
 
-%{
-X_6i = zeros(1,nso
-ut);
-for n = 1:nsout
-    X_6i(n) = (1 + sum(X_6i)) * (3);
+h_6i  = linspace(h_5,h_6,nsout+1)'; h_6i  = h_6i(2:end-1);
+h_6is = h_5 + (h_6i - h_5)/eta_SiT; % eq2.9
+T_6i  = zeros(nsout-1,1);
+p_6i  = zeros(nsout-1,1);
+s_6i  = zeros(nsout-1,1);
+e_6i  = zeros(nsout-1,1);
+x_6i  = zeros(nsout-1,1);
+name  = {};
+for i = 1:nsout-1
+    T_6i(i) = soutirage(h_6is(i),T_5,T_6,s_5);
+    p_6i(i) = adjust_p(T_6i(i),h_6i(i),p_5,p_6);
+    s_6i(i) = XSteam('s_ph',p_6i(i),h_6i(i));
+    e_6i(i) = (h_6i(i)-h_0) - (T_0+273.15)*(s_6i(i)-s_0);
+    if abs(p_6i(i) - XSteam('psat_T',T_6i(i))) < 1e-3
+        x_6i(i) = XSteam('x_ph',p_6i(i),h_6i(i));
+    else
+        x_6i(i) = NaN;
+    end
+    c = num2roman(nsout-i);
+    if isempty(c)
+        c = '0';
+    end
+    c = convertCharsToStrings(c);
+    name(i) = cellstr(strcat("6_",c))
 end
-%}
 
 
-disp([state_2,state_3,state_5,state_6,state_7])
+%X_6i = zeros(1,nsout-1);
+%for n = 1:nsout
+%    X_6i(n) = (1 + sum(X_6i)) * (3);
+%end
 
+
+T = table(['3';'4';'5';name';'6';'7'],[T_3;T_4;T_5;T_6i;T_6;T_7],[p_3;p_4;p_5;p_6i;p_6;p_7],...
+    [h_3;h_4;h_5;h_6i;h_6;h_7],[s_3;s_4;s_5;s_6i;s_6;s_7],...
+    [e_3;e_4;e_5;e_6i;e_6;e_7],[NaN;NaN;NaN;x_6i;x_6;.0]);
+T.Properties.VariableNames = {'States','Temperature','Pressure',...
+    'Enthalpy','Entropy','Exergy','Titre'};
+disp(T)
+
+%disp([state_2,state_3,state_5,state_6,state_7])
+
+end
+
+function [Y] = adjust(T,h,s)
+    tol = 1e-3; nmax = 5e2;
+
+    if length(h) == 2
+        T1 = XSteam('T_hs',h(1),s);
+        T2 = XSteam('T_hs',h(2),s);
+        if (T1 < T && T2 < T)
+            Y2 = max(h)*2; Y1 = max(h);
+        elseif(T1 > T && T2 > T)
+            Y1 = min(h)/2; Y2 = min(h);
+        else
+            Y1 = min(h); Y2 = max(h);
+        end
+    else
+        T1 = XSteam('T_hs',h,s(1));
+        T2 = XSteam('T_hs',h,s(2));
+        if (T1 < T && T2 < T)
+            Y1 = min(s)/2; Y2 = min(s);
+        elseif(T1 > T && T2 > T)
+            Y2 = max(s)*2; Y1 = max(s);
+        else
+            Y1 = min(s); Y2 = max(s);
+        end
+    end
+
+    err = 1; n = 0;
+    while (abs(err) > tol && n < nmax)
+        Y = (Y1 + Y2)/2;
+        if length(h) == 2
+            err = T - XSteam('T_hs',Y,s);
+        else
+            err = T - XSteam('T_hs',h,Y);
+        end
+        if err > 0
+            Y1 = Y;
+        else
+            Y2 = Y;
+        end
+        n = n +1;
+    end
+end
+
+function [T] = soutirage(hs,Ti,Tf,si)
+    tol = 1e-3; nmax = 5e2;
+    err = 1; n = 0;
+    while (abs(err) > tol && n < nmax)
+        T = (Ti + Tf)/2;
+        err = si - adjust(T,hs,[si-5,si+5]);
+        if err > 0
+            Tf = T;
+        else
+            Ti = T;
+        end
+        n = n +1;
+    end
+end
+
+function [p] = adjust_p(T,h,p0,pf)
+    tol = 1e-3; nmax = 5e2;
+    err = 1; n = 0;
+    while (abs(err) > tol && n < nmax)
+        p = (p0 + pf)/2;
+        err = h - XSteam('h_pT',p,T);
+        if err > 0
+            p0 = p;
+        else
+            pf = p;
+        end
+        n = n +1;
+    end
 end
