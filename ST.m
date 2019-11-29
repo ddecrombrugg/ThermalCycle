@@ -175,8 +175,8 @@ if isfield(options,'comb')
 else
     Tmax = 1000;
     lambda = 1.05;
-    x = 4;
-    y = 0;
+    x = 0;
+    y = 4;
 end
 
 % options.T_exhaust [°C] : Temperature of exhaust gas out of the chimney
@@ -221,7 +221,7 @@ end
 if isfield(options,'TpinchCond') %OK
     TpinchCond = options.TpinchCond;
 else
-    TpinchCond = 5;
+    TpinchCond = 7;
 end
 
 % options.Tdrum [°C] : minimal drum temperature
@@ -311,6 +311,14 @@ R_air = 287.058e-3; % [kJ/(kg*K)]
     end
 
 
+
+%% REFERENCE STATE
+
+p_0 = XSteam('psat_T',T_0);
+h_0 = XSteam('hV_T',T_0);
+s_0 = XSteam('sV_T',T_0);
+e_0 = 0;
+
 %% COMBUSTION
 
 a = (lambda-1)*(1+y/4-x/2); b = y/2;
@@ -319,16 +327,12 @@ w = lambda*(1+y/4-x/2); % Stoechiometric coefficients
 M_c = (12.01+1.01*y+16*x)*1e-3; % Molar mass of carburant [kg/mol]
 LHV = (-74.9 + 393.52 + b*241.80)/M_c; % [kJ/kg]
 
-T_c0 = 15 +273.15;
-T_c1 = Tmax +273.15; % Temperature after combustion [K]
-T_ce = T_exhaust +273.15; % Temperature after the heat exchange [K]
-
 comp_f_tot = M_CO2 + b*M_H2O + a*M_O2 + 3.76*w*M_N2; % [kg]
 comp_f_CO2 = M_CO2 / comp_f_tot; % [-]
 comp_f_H2O = b*M_H2O / comp_f_tot; % [-]
 comp_f_O2  = a*M_O2 / comp_f_tot; % [-]
 comp_f_N2  = 3.76*w*M_N2 / comp_f_tot; % [-]
-R_f = R / comp_f_tot * (1+b+a+3.76*w); % [J/(kg*K)]
+R_f = R / comp_f_tot * (1+b+a+3.76*w); % [kJ/(kg*K)]
 
     function [X] = Cp_f(T)
         T = T +273.15;
@@ -337,19 +341,15 @@ R_f = R / comp_f_tot * (1+b+a+3.76*w); % [J/(kg*K)]
             comp_f_O2*janaf('O2',T) + comp_f_N2*janaf('N2',T); % [kJ/(kg*K)]
     end
 
+T_c1 = Tmax - TpinchEx; % Temperature after combustion [K]
+h_c1 = h_0 + integral(@Cp_f,T_0,T_c1)*(T_c1 - T_0); % Enthalpy after combustion [kJ/kg]
+T_ce = T_exhaust; % Temperature after the heat exchange [K]
+h_ce = h_0 + integral(@Cp_f,T_0,T_ce)*(T_ce - T_0); % Enthalpy after the heat exchange [kJ/kg]
+
 m_a1 = (1+y/4-x/2) * (M_air/.21)/M_c; % [mol]
-m_ac = lambda * m_a1 ; % [-]
+m_ac = lambda * m_a1;  % [-]
 m_ag = (1 + 1/m_ac)^(-1); % [-]
 Q_comb = LHV / m_ac;
-
-%integral(@Cp_f,Tmax,T_exhaust)
-
-%% REFERENCE STATE
-
-p_0 = XSteam('psat_T',T_0);
-h_0 = XSteam('hV_T',T_0);
-s_0 = XSteam('sV_T',T_0);
-e_0 = 0;
 
 %% CYCLE
 
@@ -368,6 +368,7 @@ p_3 = p3_hp; % given
 h_3 = XSteam('h_pT',p_3,T_3);
 s_3 = XSteam('s_pT',p_3,T_3);
 e_3 = (h_3-h_0) - (T_0+273.15)*(s_3-s_0);
+v_3 = XSteam('v_pT',p_3,T_3);
 state_3 = [T_3;p_3;h_3;s_3;e_3;NaN];
 
 T_7 = T_cond_out + TpinchCond;
@@ -376,6 +377,7 @@ h_7 = XSteam('hL_T',T_7);
 s_7 = XSteam('sL_T',T_7);
 e_7 = (h_7-h_0) - (T_0+273.15)*(s_7-s_0);
 state_7 = [T_7;p_7;h_7;s_7;e_7;.0];
+
 
 if constr == 'pressure'
     h_4s = XSteam('h_ps',p_4,s_3);
@@ -399,6 +401,7 @@ if constr == 'pressure'
     s_6  = XSteam('s_ph',p_6,h_6);
     e_6  = (h_6-h_0) - (T_0+273.15)*(s_6-s_0);
     x_6  = XSteam('x_ph',p_6,h_6);
+    v_6  = XSteam('v_ph',p_6,h_6);
     state_6 = [T_6;p_6;h_6;s_6;e_6;x_6];
 else
     T_6 = T_7;
@@ -406,6 +409,7 @@ else
     h_6 = XSteam('h_Tx',T_6,x_6);
     s_6 = XSteam('sL_T',T_6)*(1-x_6) + XSteam('sV_T',T_6)*x_6;
     e_6 = (h_6-h_0) - (T_0+273.15)*(s_6-s_0);
+    v_6  = XSteam('v_ph',p_6,h_6);
     state_6 = [T_6;p_6;h_6;s_6;e_6;x_6];
 
     T_5 = T_3;
@@ -426,47 +430,82 @@ else
     state_4 = [T_4;p_4;h_4;s_4;e_4;NaN];
 end
 
-h_6i  = linspace(h_5,h_6,nsout+1)'; h_6i  = h_6i(2:end-1);
-h_6is = h_5 + (h_6i - h_5)/eta_SiT; % eq2.9
-T_6i  = zeros(nsout-1,1);
-p_6i  = zeros(nsout-1,1);
-s_6i  = zeros(nsout-1,1);
-e_6i  = zeros(nsout-1,1);
-x_6i  = zeros(nsout-1,1);
-name  = {};
-for i = 1:nsout-1
-    T_6i(i) = soutirage(h_6is(i),T_5,T_6,s_5);
-    p_6i(i) = adjust_p(T_6i(i),h_6i(i),p_5,p_6);
-    s_6i(i) = XSteam('s_ph',p_6i(i),h_6i(i));
-    e_6i(i) = (h_6i(i)-h_0) - (T_0+273.15)*(s_6i(i)-s_0);
-    if abs(p_6i(i) - XSteam('psat_T',T_6i(i))) < 1e-3
-        x_6i(i) = XSteam('x_ph',p_6i(i),h_6i(i));
+
+
+% Soutirages isoenthalpiques
+if nsout == 1
+    h_6i  = linspace(h_5,h_6,3)'; h_6i  = h_6i(2);
+    h_6is = h_5 + (h_6i - h_5)/eta_SiT; % eq2.9
+    p_6i  = soutirage(s_5,h_5,h_6i,p_5,p_6,eta_SiT2);
+    T_6i  = XSteam('T_ph',p_6i,h_6is);
+    s_6i  = XSteam('s_ph',p_6i,h_6i);
+    e_6i  = (h_6i-h_0) - (T_0+273.15)*(s_6i-s_0);
+    if abs(p_6i - XSteam('psat_T',T_6i)) < 1e-3
+        x_6i = XSteam('x_ph',p_6i,h_6i);
     else
-        x_6i(i) = NaN;
+        x_6i = NaN;
     end
-    c = num2roman(nsout-i);
-    if isempty(c)
-        c = '0';
+    st_6i = {'6_I'};
+elseif nsout > 1
+    h_6i  = linspace(h_5,h_6,nsout+1)'; h_6i = h_6i(2:end-1);
+    h_6is = h_5 + (h_6i - h_5)/eta_SiT; % eq2.9
+    T_6i  = zeros(nsout-1,1);
+    p_6i  = zeros(nsout-1,1);
+    s_6i  = zeros(nsout-1,1);
+    e_6i  = zeros(nsout-1,1);
+    x_6i  = zeros(nsout-1,1);
+    v_6i  = zeros(nsout-1,1);
+    st_6i = cell(1,nsout-1);
+    for i = 1:nsout-1
+        p_6i(i) = soutirage(s_5,h_5,h_6i(i),p_5,p_6,eta_SiT2);
+        T_6i(i) = XSteam('T_ph',p_6i(i),h_6is(i));
+        s_6i(i) = XSteam('s_ph',p_6i(i),h_6i(i));
+        e_6i(i) = (h_6i(i)-h_0) - (T_0+273.15)*(s_6i(i)-s_0);
+        x_6i(i) = XSteam('x_ph',p_6i(i),h_6i(i));
+        v_6i(i) = XSteam('v_ph',p_6i(i),h_6i(i));
+        c = convertCharsToStrings(num2roman(nsout-i));
+        st_6i(i) = cellstr(strcat("6_",c));
     end
-    c = convertCharsToStrings(c);
-    name(i) = cellstr(strcat("6_",c))
 end
 
+A = (h_6-h_5) *ones(nsout);
+% A = zeros(nsout);
+% A(:,end) = zeros(1,nsout);
+%b = [(h_5-h_6)*ones(nsout-1,1);(h_3-h_5)+LHV];
+b = [(-h_5+h_6)*ones(nsout-1,1);(h_3-h_6)+LHV]
+for i = 1:nsout
+    if i == nsout && nsout > 1
+        A(i,i) = (h_4-h_3);
+    else
+        A(i:end,i) = h_6i(nsout-i) - [h_5*ones(nsout-i,1);h_3-LHV];
+    end
+end
+disp(A)
+STir_6i = A\b
+
+p_2 = p_3 *1.1;
+h_2 = h_3 + (1+sum(STir_6i(1:end-1)))/(1+sum(STir_6i))*(h_5 - h_4) - Q_comb;
+T_2 = XSteam('T_ph',p_2,h_2);
+s_2 = XSteam('s_ph',p_2,h_2);
+e_2 = (h_7-h_0) - (T_0+273.15)*(s_7-s_0);
+x_2 = XSteam('x_ph',p_2,h_2);
+state_2 = [T_2;p_2;h_2;s_2;e_2;x_2];
 
 %X_6i = zeros(1,nsout-1);
 %for n = 1:nsout
 %    X_6i(n) = (1 + sum(X_6i)) * (3);
 %end
 
-
-T = table(['3';'4';'5';name';'6';'7'],[T_3;T_4;T_5;T_6i;T_6;T_7],[p_3;p_4;p_5;p_6i;p_6;p_7],...
-    [h_3;h_4;h_5;h_6i;h_6;h_7],[s_3;s_4;s_5;s_6i;s_6;s_7],...
-    [e_3;e_4;e_5;e_6i;e_6;e_7],[NaN;NaN;NaN;x_6i;x_6;.0]);
-T.Properties.VariableNames = {'States','Temperature','Pressure',...
-    'Enthalpy','Entropy','Exergy','Titre'};
+T = table([T_2;T_3;T_4;T_5;T_6i;T_6;T_7],...
+        [p_2;p_3;p_4;p_5;p_6i;p_6;p_7],...
+        [h_2;h_3;h_4;h_5;h_6i;h_6;h_7],...
+        [s_2;s_3;s_4;s_5;s_6i;s_6;s_7],...
+        [e_2;e_3;e_4;e_5;e_6i;e_6;e_7],...
+        [x_2;NaN;NaN;NaN;x_6i;x_6;.0],...
+        'RowNames',cat(2,{'2','3','4','5'},st_6i,{'6','7'}));
+T.Properties.VariableNames = {'Temperature','Pressure',...
+    'Enthalpy','Entropy','Exergy','Ratio'};
 disp(T)
-
-%disp([state_2,state_3,state_5,state_6,state_7])
 
 end
 
@@ -512,31 +551,17 @@ function [Y] = adjust(T,h,s)
     end
 end
 
-function [T] = soutirage(hs,Ti,Tf,si)
-    tol = 1e-3; nmax = 5e2;
-    err = 1; n = 0;
-    while (abs(err) > tol && n < nmax)
-        T = (Ti + Tf)/2;
-        err = si - adjust(T,hs,[si-5,si+5]);
-        if err > 0
-            Tf = T;
-        else
-            Ti = T;
-        end
-        n = n +1;
-    end
-end
-
-function [p] = adjust_p(T,h,p0,pf)
+function [p] = soutirage(s0,h0,hf,p0,pf,eta)
     tol = 1e-3; nmax = 5e2;
     err = 1; n = 0;
     while (abs(err) > tol && n < nmax)
         p = (p0 + pf)/2;
-        err = h - XSteam('h_pT',p,T);
+        hs  = XSteam('h_ps',p,s0);
+        err = hf - h0 + eta * (h0 - hs); % eq2.9
         if err > 0
-            p0 = p;
-        else
             pf = p;
+        else
+            p0 = p;
         end
         n = n +1;
     end
