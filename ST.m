@@ -220,7 +220,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     if isfield(options,'TpinchEx') %OK
         TpinchEx = options.TpinchEx;
     else
-        TpinchEx = 30;
+        TpinchEx = 20;
     end
 
     % options.TpinchCond [°C] : Temperature pinch at condenser
@@ -234,7 +234,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     if isfield(options,'Tdrum')
         Tdrum = options.Tdrum;
     else
-        Tdrum = 123.5;
+        Tdrum = 148.7;
     end
 
     % options.eta_SiC [-] : Internal pump efficiency
@@ -332,7 +332,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     w = lambda*(1+y/4-x/2); % Stoechiometric coefficients
 
     M_c = (12.01+1.01*y+16*x)*1e-3; % Molar mass of carburant [kg/mol]
-    LHV = (-74.9 + 393.52 + b*241.80)/M_c; % [kJ/kg]
+    LHV = (393.6 + 102.2*y - (110.6 + 204.4*y)*x/(1+y/2)) / M_c; % [kJ/kg]
 
     comp_f_tot = M_CO2 + b*M_H2O + a*M_O2 + 3.76*w*M_N2; % [kg]
     comp_f_CO2 = M_CO2 / comp_f_tot; % [-]
@@ -341,12 +341,12 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     comp_f_N2  = 3.76*w*M_N2 / comp_f_tot; % [-]
     R_f = R / comp_f_tot * (1+b+a+3.76*w); % [kJ/(kg*K)]
 
-        function [X] = Cp_f(T)
-            T = T +273.15;
-            T(T<300) = 300; T(T>5000) = 5000;
-            X = comp_f_CO2*janaf('CO2',T) + comp_f_H2O*janaf('H2O',T) + ...
-                comp_f_O2*janaf('O2',T) + comp_f_N2*janaf('N2',T); % [kJ/(kg*K)]
-        end
+    function [X] = Cp_f(T)
+        T = T +273.15;
+        T(T<300) = 300; T(T>5000) = 5000;
+        X = comp_f_CO2*janaf('CO2',T) + comp_f_H2O*janaf('H2O',T) + ...
+            comp_f_O2*janaf('O2',T) + comp_f_N2*janaf('N2',T); % [kJ/(kg*K)]
+    end
 
     T_c1 = Tmax; % Temperature after combustion [K]
     h_c1 = h_0 + integral(@Cp_f,T_0,T_c1)*(T_c1 - T_0); % Enthalpy after combustion [kJ/kg]
@@ -464,81 +464,99 @@ elseif nsout > 1
     end
 end
 
-eta_Ex = .98;
-h_7i = [XSteam('hL_p',eta_Ex*p_4);zeros(nsout-1,1)];
-for i = 1:nsout-1
-    h_7i(i+1) = XSteam('hL_p',eta_Ex*p_6i(i));
-end
+p_1 = 100;
+% Fractions des soutirages
+if drumFlag
+    T_8 = T_7;
+    p_8 = XSteam('psat_T',Tdrum);
+    h_8 = XSteam('h_pT',p_8,T_8);
+    s_8 = XSteam('s_pT',p_8,T_8);
+    e_8 = (h_8-h_0) - (T_0+273.15)*(s_8-s_0);
+    state_8 = [T_8;p_8;h_8;s_8;e_8;NaN];
 
-T_8  = T_7;
-T_70 = T_8 + TpinchSub;
-h_70 = XSteam('h_pT',eta_Ex*p_6i(end),T_70);
-T_9i = [XSteam('Tsat_p',p_4)-TpinchEx;zeros(nsout-1,1)];
-drum = round(nsout/2); T_9i(drum+1) = Tdrum;
-for i = 1:nsout-1
-    if i ~= drum
-        T_9i(i+1) = XSteam('Tsat_p',p_6i(i)*eta_Ex) - TpinchEx;
+    eta_Ex = .98; drum = round(nsout/2); drum_r = nsout-drum;
+    p_7i = [eta_Ex*p_4;zeros(nsout-1,1)];
+    h_7i = [XSteam('hL_p',eta_Ex*p_4);zeros(nsout-1,1)];
+    for i = 1:nsout-1
+        p_7i(i+1) = p_6i(i) * eta_Ex;
+        h_7i(i+1) = XSteam('hL_p',p_7i(i+1));
     end
-end
+    h_7i(drum +1) = p_8;
+    h_7i(drum +1) = XSteam('hL_T',Tdrum);
 
-p_8 = 4.6; iter = 0;
-while abs(p_8 - iter) > 1e-3
-    iter = p_8;
-    A = zeros(drum-1);
-    b = zeros(drum-1,1);
-    for i = 1:drum-1
-        A(i,1:i) = h_7i(drum+i+1) - h_6i(drum+1:drum+i)';
-        dh = XSteam('h_pT',p_8,T_9i(drum+1)) - XSteam('h_pT',p_8,T_9i(drum+i+1));
-        A(i,:) = A(i,:) - dh*ones(1,3);
+    T_9i = zeros(nsout,1);
+    for i = 1:nsout
+        T_9i(i) = XSteam('Tsat_p',p_7i(i)) - TpinchEx;
+    end
+    T_9i(drum +1) = Tdrum;
+
+    T_70 = T_7;
+    h_70 = XSteam('h_pT',p_7i(end),T_70);
+    T_90 = T_70 - TpinchSub;
+    h_90 = XSteam('h_pT',p_8,T_90);
+
+    A = zeros(nsout);
+    b = zeros(nsout,1);
+
+    % Premiers soutirages [Condenseur ; Drum]
+    for i = drum+2:nsout
+        A(i,drum+2:i) = h_6i(drum+1:i-1) - h_7i(i);
+        if i == nsout
+            dh = XSteam('h_pT',p_8,T_9i(drum+2)) - h_90;
+        else
+            dh = XSteam('h_pT',p_8,T_9i(drum+2)) - XSteam('h_pT',p_8,T_9i(i+1));
+        end
+        A(i,drum+2:end) = A(i,drum+2:end) - dh*ones(1,drum-1);
         b(i) = dh;
     end
-    %disp(A); disp(b)
-    X_6i = -A\b
-    h_8 = -(h_70 - h_6i(drum+1:end)')*X_6i/(1+sum(X_6i)) + XSteam('h_pT',p_8,T_9i(drum+1));
-    p_8 = adjust_p(T_8,h_8,p_8*3/2,p_8/2)
+
+    A(drum+1,drum+2:end) = h_7i(drum +1) - XSteam('h_pT',p_8,T_9i(drum+2));
+    A(drum+1,drum+1) = h_7i(drum +1) - h_6i(drum);
+    A(drum+1,1:drum) = h_7i(drum +1) - h_7i(drum);
+    b(drum+1) = -h_7i(drum +1) + XSteam('h_pT',p_8,T_9i(drum+2));
+
+    % Soutirages [Drum ; Combustion]
+    for i = 1:drum
+        if i == 1
+            A(1,1) = h_4 - h_7i(1);
+        else
+            A(i,1:i) = [h_4;h_6i(1:i-1)] - h_7i(1);
+        end
+        dh = XSteam('h_pT',p_1,T_9i(1)) - XSteam('h_pT',p_1,T_9i(i+1));
+        A(i,:) = A(i,:) - dh;
+        b(i) = dh;
+    end
+
+    X_6i = A\b;
+
+    T_1 = T_9i(1);
 end
-%X_6i
+m_vap = 1+sum(X_6i);
+m_vap_7 = 1+sum(X_6i(drum+2:end));
 
-
-Q_comb = (h_3-h_4) + (h_5-h_6);
-
-
-%{
-A = (h_6-h_5) *ones(nsout-1);
-%A = zeros(nsout-1);
-% A(:,end) = zeros(1,nsout);
-%b = [(h_5-h_6)*ones(nsout-1,1);(h_3-h_5)+LHV];
-%b = ((h_3-h_6) + (p_3*v_3-p_6*v_6)*100)*ones(nsout-1,1);
-b = (h_5-h_6)*ones(nsout-1,1);
-for i = 1:nsout-1
-    %if i == nsout && nsout > 1
-    %    A(i,i) = (h_4-h_3);
-    %else
-        %A(i:end,i) = (h_6i(nsout-i)-h_6 + (p_6i(nsout-i)*v_6i(nsout-i)-p_6*v_6)*100) *ones(nsout-i,1);
-        A(i:end-1,i) = (h_6i(nsout-i)-h_6) *ones(nsout-i-1,1);
-    %end
-end
-STir_6i = A\b;
-%}
-
-
-p_2 = p_3 *1.1;
-h_2 = 3e3;%h_3 + (1+sum(STir_6i(1:end-1)))/(1+sum(STir_6i))*(h_5 - h_4) - Q_comb;
+p_2 = p_3 *1.2;
+h_2 = h_3 + (1 + sum(X_6i(1:end-1))) * (h_5 - h_4 - Q_comb)/(1 + sum(X_6i));
 T_2 = XSteam('T_ph',p_2,h_2);
 s_2 = XSteam('s_ph',p_2,h_2);
-e_2 = (h_7-h_0) - (T_0+273.15)*(s_7-s_0);
-x_2 = XSteam('x_ph',p_2,h_2);
-state_2 = [T_2;p_2;h_2;s_2;e_2;x_2];
+e_2 = (h_2-h_0) - (T_0+273.15)*(s_2-s_0);
+state_2 = [T_2;p_2;h_2;s_2;e_2;NaN];
 
-T = table([T_2;T_3;T_4;T_5;T_6i;T_6;T_7],...
-        [p_2;p_3;p_4;p_5;p_6i;p_6;p_7],...
-        [h_2;h_3;h_4;h_5;h_6i;h_6;h_7],...
-        [s_2;s_3;s_4;s_5;s_6i;s_6;s_7],...
-        [e_2;e_3;e_4;e_5;e_6i;e_6;e_7],...
-        [x_2;NaN;NaN;NaN;x_6i;x_6;.0],...
-        'RowNames',cat(2,{'2','3','4','5'},st_6i,{'6','7'}));
+h_1 = XSteam('h_pT',p_1,T_1);
+s_1 = XSteam('s_pT',p_1,T_1);
+e_1 = (h_1-h_0) - (T_0+273.15)*(s_1-s_0);
+state_1 = [T_1;p_1;h_1;s_1;e_1;NaN];
+
+T = table([T_1;T_2;T_3;T_4;T_5;T_6i;T_6;T_7;T_8],...
+        [p_1;p_2;p_3;p_4;p_5;p_6i;p_6;p_7;p_8],...
+        [h_1;h_2;h_3;h_4;h_5;h_6i;h_6;h_7;h_8],...
+        [s_1;s_2;s_3;s_4;s_5;s_6i;s_6;s_7;s_8],...
+        [e_1;e_2;e_3;e_4;e_5;e_6i;e_6;e_7;e_8],...
+        [NaN;NaN;NaN;NaN;NaN;x_6i;x_6;.0 ;NaN],...
+        [m_vap;m_vap;m_vap;m_vap;m_vap-X_6i(end);...
+        X_6i(2:end);1;m_vap_7;m_vap_7],...
+        'RowNames',cat(2,{'1','2','3','4','5'},st_6i,{'6','7','8'}));
 T.Properties.VariableNames = {'Temperature','Pressure',...
-    'Enthalpy','Entropy','Exergy','Ratio'};
+    'Enthalpy','Entropy','Exergy','Ratio','Debit'};
 disp(T)
 
 end
@@ -601,29 +619,4 @@ function [p] = soutirage(s0,h0,hf,p0,pf,eta)
     end
 end
 
-function [Y] = adjust_p(T,h,p1,p2)
-    tol = 1e-3; nmax = 5e2;
-
-    T1 = XSteam('T_ph',p1,h); 
-    T2 = XSteam('T_ph',p2,h);
-    if (T1 < T && T2 < T)
-        Y2 = p2*2; Y1 = p2;
-    elseif(T1 > T && T2 > T)
-        Y1 = p1/2; Y2 = p1;
-    else
-        Y1 = p1; Y2 = p2;
-    end
-
-    err = 1; n = 0;
-    while (abs(err) > tol && n < nmax)
-        Y = (Y1 + Y2)/2;
-        err = T - XSteam('T_ph',Y,h);
-        if err > 0
-            Y1 = Y;
-        else
-            Y2 = Y;
-        end
-        n = n +1;
-    end
-end
 
