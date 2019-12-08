@@ -351,14 +351,14 @@ eta_combex = (m_f*e_3-m_a*e_2)/(m_c*e_c); % cf. eq 3.36
 
 % ETA vector
 ETA(1) = eta_cyclen; ETA(2) = eta_toten; ETA(3) = eta_cyclex; 
-ETA(4) = eta_rotex; ETA(5) = eta_combex; 
+ETA(4) = eta_rotex; ETA(5) = eta_combex
 
 % DATEN vector
-DATEN(1) = perte_mecen; DATEN(2) = perte_echen;
+DATEN(1) = perte_mecen; DATEN(2) = perte_echen
 
 % DATEX vector
 DATEX(1) = perte_mecex; DATEX(2) = perte_rotex; DATEX(3) = perte_combex; 
-DATEX(4) = perte_echex; 
+DATEX(4) = perte_echex
 
 % DAT Vector
 DAT(1,1) = T_1; DAT(1,2) = T_2; DAT(1,3) = T_3; DAT(1,4) = T_4;
