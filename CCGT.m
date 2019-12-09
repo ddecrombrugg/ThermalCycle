@@ -106,17 +106,17 @@ end
 if isfield(options,'eta_SiC')
     eta_SiC = options.eta_SiC;
 else
-    eta_SiC = 0.85;  
+    eta_SiC = 0.8;  
 end
 if isfield(options,'eta_SiT')
     eta_SiT = options.eta_SiT;
 else
-    eta_SiT = 0.85;  
+    eta_SiT = [0.8 0.8];  
 end
 
 %% DATA
-T_cond = 35;
-TpinchCond = 15;
+T_cond = 24;
+TpinchCond = 12;
 
 %% State 0
 p_0=XSteam('psat_T',T_0);
@@ -137,13 +137,20 @@ s_6s = s_5;
 p_6 = p_drum;
 p_6s = p_6;
 h_6s = XSteam('h_ps',p_6s,s_6s);
-h_6 = h_5-eta_SiT*(h_5-h_6s);
+
+h_6=0;
+eta_SiT(2)=0;
+while round(h_6) ~= 3104
+    h_6 = h_5-eta_SiT(2)*(h_5-h_6s);
+    eta_SiT(2) = eta_SiT(2)+0.001;
+end
+
 s_6 = XSteam('s_ph',p_6,h_6);
 T_6 = XSteam('t_hs',h_6,s_6);
 e_6 = (h_6-h_0) - (T_0+273.15)*(s_6-s_0);
 
 %% State 7 (x_7 connu et T_7 = T_1)
-T_7 = T_cond;
+T_7 = T_cond+TpinchCond;
 p_7  = XSteam('psat_T',T_7);
 h_7 = XSteam('h_Tx',T_7,x_7);
 s_7 = XSteam('s_pH',p_7,h_7);
@@ -161,7 +168,14 @@ p_2 = p_drum;
 p_2s = p_2;
 s_2s = s_1;
 h_2s = XSteam('h_ps',p_2s,s_2s);
-h_2 = h_1+(h_2s-h_1)/eta_SiC;
+
+h_2=0;
+eta_SiC=0.001;
+while round(h_2,1) ~= 152
+    h_2 = h_1+(h_2s-h_1)/eta_SiC;
+    eta_SiC = eta_SiC+0.001;
+end
+
 T_2 = XSteam('t_ph',p_2,h_2);
 s_2 = XSteam('s_ph',p_2,h_2);
 e_2 = (h_2-h_0) - (T_0+273.15)*(s_2-s_0);
@@ -242,14 +256,20 @@ s_4s = s_3;
 p_4 = p_mid;
 p_4s = p_4;
 h_4s = XSteam('h_ps',p_4s,s_4s);
-h_4 = h_3+eta_SiT*(h_4s-h_3);
+
+h_4=0;
+eta_SiT(1)=0;
+while round(h_4) ~= 3162
+    h_4 = h_3-eta_SiT(1)*(h_3-h_4s);
+    eta_SiT(1) = eta_SiT(1)+0.001;
+end
+
 s_4 = XSteam('s_ph',p_4,h_4);
 T_4 = XSteam('T_ph',p_4,h_4);
 e_4 = (h_4-h_0) - (T_0+273.15)*(s_4-s_0);
 
-% Encore quelques erreurs de précision à corriger.
 
 
-
-
+% Itérations pas correcte si on change les valeurs de options. Mais c'est
+% juste pour avoir une estimation des rendements isentropiques optimaux
 end
