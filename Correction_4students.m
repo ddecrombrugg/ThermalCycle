@@ -4,12 +4,12 @@ function Correction_4students(path)
 if nargin<2
     noRef=1;% Pas de reference
     if nargin<1
-        path='.\GrXX\';%here
+        path='';%'.\GrXX\';%here
         TestGT     = 1;
         TestST     = 1;
-        TestCCGT2P = 1;
-        TestCCGT3P = 1;
-        TestCT     = 1;
+        TestCCGT2P = 0;
+        TestCCGT3P = 0;
+        TestCT     = 0;
     end
 end
 

@@ -111,7 +111,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
             %constr = "vapor_ratio";
             options = struct();
             if nargin<1
-                P_e = 35e3; % [kW] Puissance énergétique de l'installation
+                P_e = 288; % [MW] Puissance énergétique de l'installation
             end
         end
     end
@@ -146,10 +146,10 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     if isfield(options,'T_max') && options.T_max >= 540 && options.T_max <= 560
         T_max = options.T_max;
     else
-        T_max = 560;
+        T_max = 565;
     end
 
-    if T_max > 560
+    if T_max > 565
         fprintf('\n    WARNING : The maximum temperature for the water is 560°C because');
         fprintf('\n              the container begin to smell at 565°C.');
         T_max = 560;
@@ -173,7 +173,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     if isfield(options,'drumFlag')
         drumFlag = options.drumFlag;
     else
-        drumFlag = 1;
+        drumFlag = 0;
     end
 
     %   -options.eta_mec [-] : mecanic efficiency of shafts bearings
@@ -194,8 +194,8 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         x = options.comb.x;
         y = options.comb.y;
     else
-        Tmax = 600;
-        lambda = 1.05;
+        Tmax = 1200;
+        lambda = 1.3;
         x = 0;
         y = 4;
     end
@@ -246,7 +246,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     if isfield(options,'TpinchEx') %OK
         TpinchEx = options.TpinchEx;
     else
-        TpinchEx = 10;
+        TpinchEx = 15;
     end
 
     % options.TpinchCond [°C] : Temperature pinch at condenser
@@ -279,9 +279,9 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     end
 
     if min(eta_SiT) < .88
-        fprintf('\n    WARNING : if the isentropic efficency of the turbines is lower than 88%,');
+        fprintf('\n    WARNING : if the isentropic efficiency of the turbines is lower than 88%,');
         fprintf('\n              because of the cavitation that can damage the turbine.');
-        fprintf('\n              Its value is reinitialized to 88%.');
+        fprintf('\n          >>> Its value is reinitialized to 88%.');
     end
     while min(eta_SiT) < .88
         eta_SiT(find(eta_Sit == min(eta_Sit))) = .88;
@@ -355,7 +355,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     s_0 = XSteam('sV_T',T_0);
     e_0 = 0;
 
-    Ta_0 = 15;
+    Ta_0 = 25;
     pa_0 = 1e5;
     ha_0 = 1.006 * Ta_0;
     sa_0 = 0.054;
@@ -369,21 +369,63 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     a = (lambda-1)*(1+y/4-x/2); b = y/2;
     w = lambda*(1+y/4-x/2); % Stoechiometric coefficients
 
-    M_c = (12.01+1.01*y+16*x)*1e-3; % Molar mass of carburant [kg/mol]
-    LHV = (393.6 + 102.2*y - (110.6 + 204.4*y)*x/(1+y/2)) / M_c; % [kJ/kg]
+    M_c  = (12.01+1.01*y+16*x)*1e-3; % Molar mass of carburant [kg/mol]
+    Cp_c = 35.639e-3; % [kJ/(mol*K)]
+    LHV  = (393.6 + 102.2*y - (110.6 + 204.4*y)*x/(1+y/2)) / M_c; % [kJ/kg]
 
     comp_f_tot = M_CO2 + b*M_H2O + a*M_O2 + 3.76*w*M_N2; % [kg]
-    comp_f_CO2 = M_CO2 / comp_f_tot % [-]
-    comp_f_H2O = b*M_H2O / comp_f_tot % [-]
-    comp_f_O2  = a*M_O2 / comp_f_tot % [-]
-    comp_f_N2  = 3.76*w*M_N2 / comp_f_tot % [-]
+    comp_f_CO2 = M_CO2 / comp_f_tot; % [-]
+    comp_f_H2O = b*M_H2O / comp_f_tot; % [-]
+    comp_f_O2  = a*M_O2 / comp_f_tot; % [-]
+    comp_f_N2  = 3.76*w*M_N2 / comp_f_tot; % [-]
     R_f = R / comp_f_tot * (1+b+a+3.76*w); % [kJ/(kg*K)]
 
-    function [X] = Cp_f(T)
-        T = T +273.15;
-        T(T<300) = 300; T(T>5000) = 5000;
-        X = comp_f_CO2*janaf('CO2',T) + comp_f_H2O*janaf('H2O',T) + ...
-            comp_f_O2*janaf('O2',T) + comp_f_N2*janaf('N2',T); % [kJ/(kg*K)]
+    % function [X] = Cp_f(T)
+    %     T = T +273.15;
+    %     T(T<300) = 300; T(T>5000) = 5000;
+    %     comp_f_CO2
+    %     X = janaf('CO2',T)*comp_f_CO2 + janaf('H2O',T)*comp_f_H2O + ...
+    %         janaf('O2',T)*comp_f_O2 + janaf('N2',T)*comp_f_N2; % [kJ/(kg*K)]
+    % end
+    function T = Cp_f(T1,T2)
+        if T1 < 300 
+            T1 = 300;
+        end
+        if T2 < 300 
+            T2 = 300;
+        end
+        if T2 < T1
+            error('Error T2 < T1');
+        elseif T1 == T2
+            T = (comp_f_O2*janaf('O2',T1)...
+                + comp_f_N2*janaf('N2',T1)...
+                + comp_f_CO2*janaf('CO2',T1)...
+                + comp_f_H2O*janaf('H2O',T1));
+        else
+            decT1 = T1 - floor(T1);
+            decT2 = T2 - floor(T2);
+            if decT1 > decT2
+                t = floor(T2) - floor(T1);
+            elseif decT1 < decT2
+                t = ceil(T2) - floor(T1);
+            else 
+                t = T2 - T1;
+            end 
+            R = ones(t+1,1); 
+            S = ones(t,1);
+            R(1) = (comp_f_O2*janaf('O2',T1) + comp_f_N2*janaf('N2',T1) + comp_f_CO2*janaf('CO2',T1) + comp_f_H2O*janaf('H2O',T1))*10^3;
+            for i = 1 : 1 : t
+                if (T1 + i) <= T2
+                    R(i+1) = (comp_f_O2*janaf('O2',T1 + i) + comp_f_N2*janaf('N2',T1 + i) + comp_f_CO2*janaf('CO2',T1 + i) + comp_f_H2O*janaf('H2O',T1 + i))*10^3;
+                    S(i) = ((R(i)+R(i+1))/2)*1;
+                else
+                    j = abs(T2-(T1+(i-1)));
+                    R(i+1) = (comp_f_O2*janaf('O2',T2) + comp_f_N2*janaf('N2',T2) + comp_f_CO2*janaf('CO2',T2) + comp_f_H2O*janaf('H2O',T2))*10^3;
+                    S(i) = ((R(i)+R(i+1))/2)*j;
+                end 
+            end
+            T = sum(S)/(T2 - T1) *1e-3;
+        end
     end
 
     m_a1 = (1+y/4-x/2) * (M_air/.21)/M_c; % [mol]
@@ -391,15 +433,39 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     m_ag = (1 + 1/m_ac)^(-1); % [-]
     Q_comb = LHV / m_ac;
 
+    % First state of comburant
+    f = 1.04; e_c = f * LHV;
+
     % State after combustion
     T_h = Tmax; % Temperature after combustion [K]
-    h_h = (Q_comb + ha_0)*m_ag
-    h_h = integral(@Cp_f,0,T_h)*T_h % Enthalpy after combustion [kJ/kg]
-
+    h_h = Cp_f(0,T_h) * T_h; % Enthalpy after combustion [kJ/kg]
+    s_h = sa_0 + Cp_f(Ta_0,T_h)*log(Ta_0/T_h);
+    e_h = (h_h-ha_0) - Ta_0*(s_h-sa_0)
 
     % Exhaust gasses
     T_e = T_exhaust; % Temperature after the heat exchange [K]
-    h_e = integral(@Cp_f,0,T_e)*T_e % Enthalpy after the heat exchange [kJ/kg]
+    h_e = Cp_f(0,T_e) * T_e; % Enthalpy after the heat exchange [kJ/kg]
+    s_e = sa_0 + Cp_f(Ta_0,T_e)*log(Ta_0/T_e);
+    e_e = (h_e-ha_0) - Ta_0*(s_e-sa_0)
+
+    eps_ech = ((lambda*m_a1)*h_e - lambda*m_a1*ha_0)/LHV;
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CONDENSOR %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    % State in
+    T_i = T_0; p_i = 10;
+    h_i = XSteam('h_pT',p_i,T_i);
+    s_i = XSteam('s_pT',p_i,T_i);
+    e_i = (h_i-h_0) + (T_0+273.15)*(s_i-s_0);
+
+    % State out
+    T_o = T_cond_out; p_o = 10;
+    h_o = XSteam('h_pT',p_o,T_o);
+    s_o = XSteam('s_pT',p_o,T_o);
+    e_o = (h_o-h_0) + (T_0+273.15)*(s_o-s_0);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -635,8 +701,7 @@ if nsout >= 1
 
     % STATES 7_i - DEFINE BY STATES 6_i AS AN ISOBARIC CONDENSATION. STATE 7_i ARE
     %               SATURATED LIQUID
-    p_7i = zeros(nsout,1);
-    h_7i = zeros(nsout,1);
+    p_7i = zeros(nsout,1); h_7i = zeros(nsout,1);
     for i = 1:nsout
         p_7i(i) = p_6i(i) * eta_Ex;
         h_7i(i) = XSteam('hL_p',p_7i(i));
@@ -663,12 +728,17 @@ if nsout >= 1
         e_8 = (h_8-h_0) - (T_0+273.15)*(s_8-s_0);
         x_8 = NaN;
 
+        % State 7_0
+        T_70 = T_8 + TpinchSub;
+        h_70 = XSteam('h_pT',p_7i(end),T_70);
+
         drum = p_7i - p_8; drum(drum<=0) = NaN;
         drum = find(drum == min(drum)) -1;
 
         p_7i(drum +1) = p_8;
         h_7i(drum +1) = XSteam('hL_T',Tdrum);
         T_9i(drum +1) = Tdrum;
+        T_90 = (T_8+T_9i(end))/2;
         h_90 = XSteam('h_pT',p_8,T_90);
         
         T_1 = T_9i(1); h_1 = 3e3;
@@ -685,36 +755,15 @@ if nsout >= 1
         e_1 = (h_1-h_0) - (T_0+273.15)*(s_1-s_0);
         x_1 = NaN;
 
-        A = zeros(nsout);
-        b = zeros(nsout,1);
-
-        % Premiers soutirages [Condenseur ; Drum]
-        for i = drum+2:nsout
-            A(i,drum+2:i) = h_6i(drum+2:i) - h_7i(i);
-            if i == nsout
-                dh = XSteam('h_pT',p_8,T_9i(drum+2)) - h_90;
-            else
-                dh = XSteam('h_pT',p_8,T_9i(drum+2)) - XSteam('h_pT',p_8,T_9i(i+1));
-            end
-            A(i,drum+2:end) = A(i,drum+2:end) - dh;
-            b(i) = dh;
+        T_90 = (T_8+T_9i(end))/2;
+        h_90 = XSteam('h_pT',p_8,T_90); iter = 0;
+        while abs(h_90-iter) > 1
+            [A,b] = sys_drumFlag(nsout,drum,h_6i,p_7i,h_7i,T_9i,h_90,p_1,p_8);
+            X_6i  = A\b;
+            iter = h_90;
+            h_90  = sum(X_6i(drum+2:end))*(h_7i(end)-h_70)/(1+sum(X_6i(drum+2:end))) + h_8;
         end
-
-        % Soutirage [Drum]
-        A(drum+1,drum+2:end) = h_7i(drum +1) - XSteam('h_pT',p_8,T_9i(drum +2));
-        A(drum+1,drum+1) = h_7i(drum +1) - h_6i(drum +1);
-        A(drum+1,1:drum) = h_7i(drum +1) - h_7i(drum +1);
-        b(drum+1) = -h_7i(drum +1) + XSteam('h_pT',p_8,T_9i(drum +2));
-
-        % Soutirages [Drum ; Combustion]
-        A(1:drum,:) = zeros(drum,nsout);
-        for i = 1:drum
-            A(i,1:i) = h_6i(1:i) - h_7i(1);
-            dh = XSteam('h_pT',p_1,T_9i(1)) - XSteam('h_pT',p_1,T_9i(i +1));
-            A(i,:) = A(i,:) - dh;
-            b(i) = dh;
-        end
-        X_6i = A\b;
+        X_6i
         
         h_2 = h_1 + (p_2-p_1)*eta_SiC/10;
         T_2 = XSteam('T_ph',p_2,h_2);
@@ -739,27 +788,26 @@ if nsout >= 1
         x_1 = NaN;
 
         p_8 = p_1;
-        h_8 = XSteam('h_pT',p_8,T_8);
+        h_8 = XSteam('h_pT',p_8,T_8)
         s_8 = XSteam('s_pT',p_8,T_8);
         e_8 = (h_8-h_0) - (T_0+273.15)*(s_8-s_0);
         x_8 = NaN;
 
-        h_90 = XSteam('h_pT',p_1,T_90);
+        T_70 = T_8 + TpinchSub;
+        h_70 = XSteam('h_pT',p_7i(end),T_70);
 
-        % All tappings [Condensor ; Combustion]
-        A = zeros(nsout);
-        b = zeros(nsout,1);
-        for i = 1:nsout
-            A(i,1:i) = h_6i(1:i) - h_7i(1);
-            if i == nsout
-                dh = XSteam('h_pT',p_1,T_9i(1)) - h_90;
-            else
-                dh = XSteam('h_pT',p_1,T_9i(1)) - XSteam('h_pT',p_1,T_9i(i+1));
-            end
-            A(i,:) = A(i,:) - dh;
-            b(i) = dh;
+        (T_9i(end)+T_8)/2
+        p_1
+        T_90 = (T_9i(end)+T_8)/2;
+        h_90 = XSteam('h_pT',p_1,T_90)
+         iter = 0;
+        while abs(h_90-iter) > 1
+            [A,b] = sys_drumOut(nsout,h_6i,h_7i,T_9i,h_90,p_1)
+            X_6i = A\b;
+            iter = h_90;
+            h_90 = sum(X_6i)*(h_7i(end)-h_70)/(1+sum(X_6i)) + h_8;
         end
-        X_6i = A\b;
+        X_6i
         
         h_2 = h_1 + (p_2-p_1)*eta_SiC/10;
         T_2 = XSteam('T_ph',p_2,h_2);
@@ -879,54 +927,116 @@ state_9i = [T_9i';p_9i';h_9i';s_9i';e_9i';x_9i'];
 DAT = [state_1,state_2,state_3,state_4,state_5,state_6,state_7,state_8,...
     state_6i,state_7i,state_9i];
 
-% ETA is a vector with :
-%   -eta(1) : eta_cyclen, cycle energy efficiency
-%   -eta(2) : eta_toten, overall energy efficiency
-%   -eta(3) : eta_cyclex, cycle exegy efficiency
-%   -eta(4) : eta_totex, overall exergie efficiency
-%   -eta(5) : eta_gen, Steam generator energy efficiency
-%   -eta(6) : eta_gex, Steam generator exergy efficiency
-%   -eta(7) : eta_combex, Combustion exergy efficiency
-%   -eta(8) : eta_chemex, Chimney exergy efficiency (losses)
-%   -eta(9) : eta_condex, Condenser exergy efficiency
-%   -eta(10): eta_transex, Steam bleeding heat exchanger overall exergy efficiency
 
-Q_I  = (h_3-h_2) + sum(h_5-h_4);
-E_I  = (e_3-e_2) + sum(e_5-e_4);
-Q_II = h_8 + h_7i(end) - h_7;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% EFFICIENCY, MASSFLOWS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-W_mT = h_3 - h_4(1); n_rh = 1;
-while n_rh < reheat
-    W_mT = W_mT + (h_5(n_rh) - h_4(n_rh+1))*(1-sum(X_6i(1:n_rh)));
-    n_rh = n_rh +1;
-end
-W_mT = W_mT + (h_5(end) - h_6)*X_6;
-W_mC = (h_2-h_1) + (h_8-h_7)*X_7;
-if drumFlag
-    W_mC = W_mC + (h_9i(drum +1) - h_7i(drum +1))*X_7i(drum +1);
-end
-W_m  = W_mT - W_mC;
-
-m_v = P_e / eta_mec / W_m
-m_c = m_v * Q_I / (h_h - h_e)
-m_a = m_ac * m_c
-m_f = m_a  / m_ag
-
-eta_rotex   = W_m;
-
-eta_cyclen  = 1 - Q_II/Q_I;
-eta_toten   = P_e / (m_c *LHV)
-eta_gen     = eta_toten / eta_cyclen / eta_mec;
-eta_cyclex  = 0;
-eta_totex   = 0;
-eta_gex     = 0;
-eta_combex  = 0;
-eta_chemex  = 0;
-eta_condex  = 0;
-eta_transex = 0;
-ETA = [];
+    % Works, Heat Exchanges
+        P_e = P_e *1e3;
+        P_m = P_e / eta_mec;
 
 
+        W_mT_en = (h_3 + sum(h_5 - h_4) - h_6)*(1-sum(X_6i));
+        W_mT_ex = (e_3 + sum(e_5 - e_4) - e_6)*(1-sum(X_6i));
+        for i = 1:nsout
+            if i == 1
+                W_mT_en = W_mT_en + (h_3 - h_4(1))*X_6i(1);
+                W_mT_ex = W_mT_ex + (e_3 - e_4(1))*X_6i(1);
+            elseif i <= reheat
+                W_mT_en = W_mT_en + (h_3 - sum(h_4(1:i)) + sum(h_5(1:i-1)))*X_6i(i);
+                W_mT_ex = W_mT_ex + (e_3 - sum(e_4(1:i)) + sum(e_5(1:i-1)))*X_6i(i);
+            else
+                W_mT_en = W_mT_en + (h_3 + sum(h_5-h_4) - h_6i(i))*X_6i(i);
+                W_mT_ex = W_mT_ex + (e_3 + sum(e_5-e_4) - e_6i(i))*X_6i(i);
+            end
+        end
+
+        W_mC_en = (h_2-h_1) + (h_8-h_7)*X_7;
+        W_mC_ex = (e_2-e_1) + (e_8-e_7)*X_7;
+        if drumFlag
+            W_mC_en = W_mC_en + (h_9i(drum +1) - h_7i(drum +1))*X_7i(drum +1);
+            W_mC_ex = W_mC_ex + (e_9i(drum +1) - e_7i(drum +1))*X_7i(drum +1);
+        end
+
+        W_m_en  = W_mT_en - W_mC_en;
+        W_m_ex  = W_mT_ex - W_mC_ex;
+
+
+        Q_I  = (h_3-h_2); E_I  = (e_3-e_2); n_rh = 1;
+        while n_rh < reheat
+            Q_I  = Q_I  + (h_5(n_rh) - h_4(n_rh))*(1-sum(X_6i(1:n_rh)));
+            E_I  = E_I  + (e_5(n_rh) - e_4(n_rh))*(1-sum(X_6i(1:n_rh)));
+            n_rh = n_rh +1;
+        end
+        Q_II = h_6*X_6 + h_7i(end)*X_7i(end) - h_7*X_7;
+
+
+    eta_cyclen  = W_m_en / Q_I;
+    eta_gen     = 1 - 1e-2 - eps_ech;
+    eta_toten   = eta_mec * eta_cyclen * eta_gen;
+
+    m_v = P_e / eta_mec / W_m_en;
+    m_c = m_v * Q_I / (eta_gen * LHV);
+    m_a = m_ac * m_c;
+    m_f = m_a  / m_ag;
+    m_w = m_v * Q_II / (h_o-h_i)
+
+    eta_rotex   = W_m_en / W_m_ex;
+
+    eta_condex  = (e_6-e_7) / e_6;
+
+    eta_transex = m_v*E_I / (m_f*(e_h-e_e));
+    eta_chemex  = (e_h-e_e) / e_h;
+    eta_combex  = (m_f*e_h) / (m_c*e_c);
+    eta_gex     = eta_transex * eta_chemex * eta_combex;
+
+    eta_cyclex  = W_m_en / E_I;
+    eta_totex   = eta_mec * eta_gex * eta_cyclex;
+
+    ETA = [eta_cyclen,eta_toten,eta_cyclex,eta_totex,eta_gen, ...
+            eta_gex,eta_combex,eta_chemex,eta_condex,eta_transex];
+
+    Xmassflow = flip(X_6i') * m_v;
+
+    MASSFLOW = [m_a,m_v,m_c,m_f];
+
+
+    COMBUSTION = struct();
+        COMBUSTION.LHV = LHV;
+        COMBUSTION.e_c = e_c;
+        COMBUSTION.lambda = lambda;
+        COMBUSTION.Cp_g = Cp_f(0,T_e);
+        COMBUSTION.fum = m_f * [comp_f_O2,comp_f_N2,comp_f_CO2,comp_f_H2O];
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LOSSES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    perte_mec = (P_m - P_e);
+
+    perte_gen    = (h_h - h_e)*m_f * (1-eta_gen); %(h_h - h_e)*m_f;
+    perte_conden = (h_o - h_i)*m_w;
+
+    DATEN = [perte_gen,perte_mec,perte_conden];
+
+    perte_totex  = m_c*e_c * (1-eta_totex);
+    perte_rotex  = W_m_en*m_v * (1-eta_rotex);
+    perte_combex = m_c*e_c * (1-eta_combex);
+    perte_condex = (e_o - e_i)*m_w;
+    perte_chemex = e_h * (1 - eta_chemex);
+    perte_transex = m_f*(e_h-e_e) * (1-eta_transex);
+
+    DATEX = [perte_mec,perte_totex,perte_rotex, ... 
+        perte_combex,perte_condex,perte_chemex,perte_transex];
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FIGURES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+FIG = [];
 
 if display
     % Table of values
@@ -942,39 +1052,42 @@ if display
             'Enthalpy','Entropy','Exergy','Ratio','Debit'};
         disp(T)
 
+    samp = 50; lw = .75;
     %TS - graph
-        figure; hold on;
+        FIG(1) = figure('Color','w'); hold on; grid;
+        xlabel('entropie, $s$ [kJ/(kg $^\circ$K)]','Interpreter','latex');
+        ylabel('temperature, $T$ [$^\circ$C]','Interpreter','latex');
 
-        T = linspace(0,373.9458,1e2); sL = []; sV = [];
+        T = linspace(0,373.9458,1e2);
+        sL = []; sV = [];
+        hL = []; hV = [];
         for t = T
             sL = [sL,XSteam('sL_T',t)]; sV = [sV,XSteam('sV_T',t)];
+            hL = [hL,XSteam('hL_T',t)]; hV = [hV,XSteam('hV_T',t)];
         end
         plot([sL,flip(sV)],[T,flip(T)],'k-.');
-        plot(s_6,T_6,'k*')
-
-        samp = 50; lw = .75;
 
         T_23 = linspace(T_2,T_3,samp)'; p_23 = linspace(p_2,p_3,samp)';
         s_23 = zeros(samp,1); h_23 = zeros(samp,1);
-        T_34 = zeros(samp,1); p_34 = zeros(samp,1);
-        s_34 = zeros(samp,1); h_34 = linspace(h_3,h_4(1),samp)';
-        T_56 = zeros(samp,1); p_56 = zeros(samp,1);
-        s_56 = zeros(samp,1); h_56 = linspace(h_5(end),h_6,samp)';
+        T_34 = zeros(samp,1); s_34 = zeros(samp,1);
+        h_34 = linspace(h_3,h_4(1),samp)';
+        T_56 = zeros(samp,1); s_56 = zeros(samp,1);
+        h_56 = linspace(h_5(end),h_6,samp)';
         for i = 1:samp
             s_23(i) = XSteam('s_pT',p_23(i),T_23(i));
             h_23(i) = XSteam('h_pT',p_23(i),T_23(i));
 
-            p_34(i) = soutirage(s_3,h_3,h_34(i),p_3,p_4(1),eta_SiT1);
-            T_34(i) = XSteam('T_ph',p_34(i),h_34(i));
-            s_34(i) = XSteam('s_ph',p_34(i),h_34(i));
+            p_34 = soutirage(s_3,h_3,h_34(i),p_3,p_4(1),eta_SiT1);
+            T_34(i) = XSteam('T_ph',p_34,h_34(i));
+            s_34(i) = XSteam('s_ph',p_34,h_34(i));
 
-            p_56(i) = soutirage(s_5(end),h_5(end),h_56(i),p_5(end),p_6,eta_SiT2);
-            T_56(i) = XSteam('T_ph',p_56(i),h_56(i));
-            s_56(i) = XSteam('s_ph',p_56(i),h_56(i));
+            p_56 = soutirage(s_5(end),h_5(end),h_56(i),p_5(end),p_6,eta_SiT2);
+            T_56(i) = XSteam('T_ph',p_56,h_56(i));
+            s_56(i) = XSteam('s_ph',p_56,h_56(i));
         end
-        TS = plot([s_56;s_7;s_8;flip(s_9i);s_1;s_23;s_34],...
+        my_fig = plot([s_56;s_7;s_8;flip(s_9i);s_1;s_23;s_34],...
             [T_56;T_7;T_8;flip(T_9i);T_1;T_23;T_34]);
-        TS.Color = [0.8500 0.3250 0.0980]; TS.LineWidth = lw;
+        my_fig.Color = [0.8500 0.3250 0.0980]; my_fig.LineWidth = lw;
 
         for j = 1:reheat-1
             T_45 = linspace(T_4(j),T_5(j),samp); p_45 = linspace(p_4(j),p_5(j),samp); s_45 = zeros(1,samp);
@@ -986,26 +1099,26 @@ if display
                 T_54(i) = XSteam('T_ph',p_54,h_54(i));
                 s_54(i) = XSteam('s_ph',p_54,h_54(i));
             end
-            TS = plot([s_45,s_54],[T_45,T_54]);
-            TS.Color = [0.8500 0.3250 0.0980]; TS.LineWidth = lw;
+            my_fig = plot([s_45,s_54],[T_45,T_54]);
+            my_fig.Color = [0.8500 0.3250 0.0980]; my_fig.LineWidth = lw;
         end
 
         T_45 = linspace(T_4(end),T_5(end),samp)'; p_45 = linspace(p_4(end),p_5(end),samp)'; s_45 = zeros(samp,1);
         for i = 1:samp
             s_45(i) = XSteam('s_pT',p_45(i),T_45(i));
         end
-        TS = plot(s_45,T_45); TS.Color = [0.8500 0.3250 0.0980]; TS.LineWidth = lw;
+        my_fig = plot(s_45,T_45); my_fig.Color = [0.8500 0.3250 0.0980]; my_fig.LineWidth = lw;
 
-        TS = plot([s_1;s_2;s_3;s_4';s_5';s_6;s_7;s_8],...
+        my_fig = plot([s_1;s_2;s_3;s_4';s_5';s_6;s_7;s_8],...
             [T_1;T_2;T_3;T_4';T_5';T_6;T_7;T_8]);
-        TS.Marker = 'o'; TS.MarkerSize = 3; TS.LineStyle = 'none';
-        TS.Color = [0.8500 0.3250 0.0980]; TS.LineWidth = lw;
+        my_fig.Marker = 'o'; my_fig.MarkerSize = 3; my_fig.LineStyle = 'none';
+        my_fig.Color = [0.8500 0.3250 0.0980]; my_fig.LineWidth = lw;
 
         for i = 1:nsout
             if i == nsout
-                TS = plot([s_6i(i),s_7i(i),s_7i(i+1),s_8],[T_6i(i),T_7i(i),T_7i(i+1),T_8]);
+                my_fig = plot([s_6i(i),s_7i(i),s_7i(i+1),s_8],[T_6i(i),T_7i(i),T_7i(i+1),T_8]);
             elseif x_6i(i) <= 1
-                TS = plot([s_6i(i),s_7i(i),adjust(T_7i(i+1),h_7i(i),0)],...
+                my_fig = plot([s_6i(i),s_7i(i),adjust(T_7i(i+1),h_7i(i),0)],...
                     [T_6i(i),T_7i(i),T_7i(i+1)]);
             else
                 T_67 = zeros(1,samp); p_67 = linspace(p_6i(i),p_7i(i),samp);
@@ -1013,30 +1126,99 @@ if display
                 for j = 1:samp
                     T_67(j) = XSteam('T_ps',p_67(j),s_67(j));
                 end
-                TS = plot([s_67,s_7i(i),adjust(T_7i(i+1),h_7i(i),0)],...
+                my_fig = plot([s_67,s_7i(i),adjust(T_7i(i+1),h_7i(i),0)],...
                     [T_67,T_7i(i),T_7i(i+1)]);
             end
-            TS.Color = [0.8500 0.3250 0.0980];
-            TS.LineStyle = '--';
+            my_fig.Color = [0.8500 0.3250 0.0980];
+            my_fig.LineStyle = '--';
             if i == drum +1
-                TS.LineWidth = lw;
+                my_fig.LineWidth = lw;
             end
         end
 
-    %ph - graph
-        figure; hold on;
+    %sh - graph
+        FIG(2) = figure('Color','w'); hold on; grid;
+        xlabel('entropie, $s$ [kJ/(kg $^\circ$K)]','Interpreter','latex');
+        ylabel('enthalpie, $h$ [kJ/kg]','Interpreter','latex');
 
-        p = linspace(0.0061,220.6395,1e2);
-        hL = []; hV = [];
-        for t = T
-            hL = [hL,XSteam('hL_T',t)];
-            hV = [hV,XSteam('hV_T',t)];
+        plot([sL,flip(sV)],[hL,flip(hV)],'k-.');
+
+        my_fig = plot([s_56;s_7;s_8;flip(s_9i);s_1;s_23;s_34],...
+            [h_56;h_7;h_8;flip(h_9i);h_1;h_23;h_34]);
+        my_fig.Color = [0.8500 0.3250 0.0980]; my_fig.LineWidth = lw;
+
+        for j = 1:reheat-1
+            T_45 = linspace(T_4(j),T_5(j),samp); p_45 = linspace(p_4(j),p_5(j),samp);
+            h_45 = zeros(1,samp); s_45 = zeros(1,samp);
+            h_54 = linspace(h_5(j),h_4(j+1),samp); s_54 = zeros(1,samp);
+            for i = 1:samp
+                h_45(i) = XSteam('h_pT',p_45(i),T_45(i));
+                s_45(i) = XSteam('s_pT',p_45(i),T_45(i));
+
+                p_54 = soutirage(s_5(j),h_5(j),h_54(i),p_5(j),p_4(j+1),eta_SiT2);
+                s_54(i) = XSteam('s_ph',p_54,h_54(i));
+            end
+            my_fig = plot([s_45,s_54],[h_45,h_54]);
+            my_fig.Color = [0.8500 0.3250 0.0980]; my_fig.LineWidth = lw;
         end
-        plot([hL,flip(hV)],[p,flip(p)],'k-.');
 
-        HP = plot([h_56;h_7;h_8;flip(h_9i);h_1;h_23;h_34],...
-            [p_56;p_7;p_8;flip(p_9i);p_1;p_23;p_34]);
-        TS.Color = [0.8500 0.3250 0.0980]; TS.LineWidth = lw;
+        T_45 = linspace(T_4(end),T_5(end),samp)'; p_45 = linspace(p_4(end),p_5(end),samp)';
+        h_45 = zeros(1,samp); s_45 = zeros(1,samp);
+        for i = 1:samp
+            h_45(i) = XSteam('h_pT',p_45(i),T_45(i));
+            s_45(i) = XSteam('s_pT',p_45(i),T_45(i));
+        end
+        my_fig = plot(s_45,h_45); my_fig.Color = [0.8500 0.3250 0.0980]; my_fig.LineWidth = lw;
+
+        my_fig = plot([s_1;s_2;s_3;s_4';s_5';s_6;s_7;s_8],...
+            [h_1;h_2;h_3;h_4';h_5';h_6;h_7;h_8]);
+        my_fig.Marker = 'o'; my_fig.MarkerSize = 3; my_fig.LineStyle = 'none';
+        my_fig.Color = [0.8500 0.3250 0.0980]; my_fig.LineWidth = lw;
+
+        for i = 1:nsout
+            if i == nsout
+                my_fig = plot([s_6i(i),s_7i(i),s_7i(i+1),s_8],[h_6i(i),h_7i(i),h_7i(i+1),h_8]);
+            elseif x_6i(i) <= 1
+                my_fig = plot([s_6i(i),s_7i(i),adjust(T_7i(i+1),h_7i(i),0)],...
+                    [h_6i(i),h_7i(i),h_7i(i)]);
+            else
+                h_67 = zeros(1,samp); p_67 = linspace(p_6i(i),p_7i(i),samp);
+                s_67 = linspace(s_6i(i),XSteam('sV_T',T_7i(i)),samp);
+                for j = 1:samp
+                    h_67(j) = XSteam('h_ps',p_67(j),s_67(j));
+                end
+                my_fig = plot([s_67,s_7i(i),adjust(T_7i(i+1),h_7i(i),0)],...
+                    [h_67,h_7i(i),h_7i(i)]);
+            end
+            my_fig.Color = [0.8500 0.3250 0.0980];
+            my_fig.LineStyle = '--';
+            if i == drum +1
+                my_fig.LineWidth = lw;
+            end
+        end
+
+    % pie chart - energy
+        FIG(3) = figure('Color','w'); grid;
+        X = [P_e DATEN];
+        pie(X,{'','','',''});
+        legend(sprintf('Puissance effective : %g [MW]',P_e*1e-3),...
+            sprintf('Pertes de combustion : %.4g [MW]',DATEN(1)*1e-3),...
+            sprintf('Pertes mecaniques : %.3g [MW]',DATEN(2)*1e-3),...
+            sprintf('Pertes au condenseur : %.5g [MW]',DATEN(3)*1e-3),...
+            'Location','southoutside');
+
+    % pie chart - energy
+        FIG(4) = figure('Color','w'); grid;
+        X = [P_e DATEX(1) DATEX(3:end)];
+        pie(X,{'','','','','','',''});
+        legend(sprintf('Puissance effective : %g [MW]',P_e*1e-3),...
+            sprintf('Pertes mecaniques : %.3g [MW]',DATEX(1)*1e-3),...
+            sprintf('Irr. aux turbines : %.5g [MW]',DATEX(3)*1e-3),...
+            sprintf('Irr. a la combustion : %.5g [MW]',DATEX(4)*1e-3),...
+            sprintf('Irr. au condenseur : %.5g [MW]',DATEX(5)*1e-3),...
+            sprintf('Pertes a la cheminee : %.5g [MW]',DATEX(6)*1e-3),...
+            sprintf('Irr. échangeur : %.5g [MW]',DATEX(7)*1e-3),...
+            'Location','southoutside');
 end
 
 end
@@ -1057,4 +1239,47 @@ function [p] = soutirage(s0,h0,hf,p0,pf,eta)
     end
 end
 
+function [A,b] = sys_drumFlag(nsout,drum,h_6i,p_7i,h_7i,T_9i,h_90,p_1,p_8)
+    A = zeros(nsout); b = zeros(nsout,1);
 
+    % Premiers soutirages [Condenseur ; Drum]
+    for i = drum+2:nsout
+        A(i,drum+2:i) = h_6i(drum+2:i) - h_7i(i);
+        if i == nsout
+            dh = XSteam('h_pT',p_8,T_9i(drum+2)) - h_90;
+        else
+            dh = XSteam('h_pT',p_8,T_9i(drum+2)) - XSteam('h_pT',p_8,T_9i(i+1));
+        end
+        A(i,drum+2:end) = A(i,drum+2:end) - dh;
+        b(i) = dh;
+    end
+
+    % Soutirage [Drum]
+    A(drum+1,drum+2:end) = h_7i(drum +1) - XSteam('h_pT',p_8,T_9i(drum +2));
+    A(drum+1,drum+1) = h_7i(drum +1) - h_6i(drum +1);
+    A(drum+1,1:drum) = h_7i(drum +1) - h_7i(drum +1);
+    b(drum+1) = -h_7i(drum +1) + XSteam('h_pT',p_8,T_9i(drum +2));
+
+    % Soutirages [Drum ; Combustion]
+    A(1:drum,:) = zeros(drum,nsout);
+    for i = 1:drum
+        A(i,1:i) = h_6i(1:i) - h_7i(1);
+        dh = XSteam('h_pT',p_1,T_9i(1)) - XSteam('h_pT',p_1,T_9i(i +1));
+        A(i,:) = A(i,:) - dh;
+        b(i) = dh;
+    end
+end
+
+function [A,b] = sys_drumOut(nsout,h_6i,h_7i,T_9i,h_90,p_1)
+    A = zeros(nsout); b = zeros(nsout,1);
+
+    for i = 1:nsout
+        A(i,1:i) = h_6i(1:i) - h_7i(1);
+        if i == nsout
+            dh = XSteam('h_pT',p_1,T_9i(1)) - h_90;
+        else
+            dh = XSteam('h_pT',p_1,T_9i(1)) - XSteam('h_pT',p_1,T_9i(i+1));
+        end
+        A(i,:) = A(i,:) - dh; b(i) = dh;
+    end
+end

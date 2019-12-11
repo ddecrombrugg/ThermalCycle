@@ -1,5 +1,9 @@
-function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
-    GT(P_e,options,display)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Thermal Cycle - Gas Turbine %
+%        Louis Peeters        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function [ETA DATEN DATEX DAT MASSFLOW COMBUSTION Cp_g FIG] = GT(P_e,options,display)
 % GT Gas turbine modelisation
 % GT(P_e,options,display) compute the thermodynamics states for a Gas
 % turbine based on several inputs (given in OPTION) and based on a given 
@@ -11,12 +15,12 @@ function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
 % P_E = electrical power output target [kW]
 % OPTIONS is a structure containing :
 %   -options.k_mec [-] : Shaft losses 
-%   -options.T_0   [Â°C] : Reference temperature
-%   -options.T_ext [Â°C] : External temperature
+%   -options.T_0   [°C] : Reference temperature
+%   -options.T_ext [°C] : External temperature
 %   -options.r     [-] : Compression ratio
 %   -options.k_cc  [-] : Coefficient of pressure losses due to combustion
 %                        chamber
-%   -options.T_3   [Â°C] : Temperature after combustion (before turbine)
+%   -options.T_3   [°C] : Temperature after combustion (before turbine)
 %   -option.eta_PiC[-] : Intern polytropic efficiency (Rendement
 %                        polytropique interne) for compression
 %   -option.eta_PiT[-] : Intern polytropic efficiency (Rendement
@@ -42,7 +46,7 @@ function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
 %   -datex(3) : perte_combex [kW]
 %   -datex(4) : perte_echex  [kW]
 % DAT is a matrix containing :
-% dat = {T_1       , T_2       , T_3       , T_4; [Â°C]
+% dat = {T_1       , T_2       , T_3       , T_4; [°C]
 %        p_1       , p_2       , p_3       , p_4; [bar]
 %        h_1       , h_2       , h_3       , h_4; [kJ/kg]
 %        s_1       , s_2       , s_3       , s_4; [kJ/kg/K]
@@ -76,299 +80,307 @@ function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
 %
 
 
-%% Parameters Verification
+%% Your Work
 
+% Exemple of how to use 'nargin' to check your number of inputs
 if nargin < 3
-   display = 1;
+    display = 1;
    if nargin < 2
-       options = struct();
+       options=struct();
+       options.k_mec = 0.015;
+       options.T_0 = 15;
+       options.T_ext = 15;
+       options.r = 18  ;
+       options.k_cc = 0.95;
+       options.T_3 = 1400;
+       options.eta_PiC = 0.9;
+       options.eta_PiT = 0.9;
        if nargin < 1
-           P_e = 230e3; % 100[MW]
+           P_e = 230e6; % 100MW
        end
    end
 end
 
-if isfield(options,'T_0') == 0
-    T_0 = 273.15;
+
+% Exemple of how to use (isfield' to check if an option has been given (or
+% not)
+if isfield(options,'T_0')
+    T_0 = options.T_0;
 else
-    T_0 = options.T_0 +273.15;
+    T_0 = 15;   
 end
 
-if isfield(options,'T_ext') == 0
-    T_ext = 15 +273.15;
+if isfield(options,'T_ext')
+    T_ext = options.T_ext;
 else
-    T_ext = options.T_ext +273.15;
+    T_ext = 15;
 end
-
-if isfield(options,'r') == 0
-    r = 18;
-else
-    r = options.r;
-end
-
-if isfield(options,'T_3') == 0
-    T_3 = 1400 +273.15;
-else
-    T_3 = options.T_3 +273.15;
-end
-
-if isfield(options,'eta_PiC') == 0
-    eta_PiC = .9;
-else
-    eta_PiC = options.eta_PiC;
-end
-
-if isfield(options,'eta_PiT') == 0
-    eta_PiT = .9;
-else
-    eta_PiT = options.eta_PiT;
-end
-
-if isfield(options,'k_cc') == 0
-    k_cc = .95;
-else
-    k_cc = options.k_cc;
-end
-
-if isfield(options,'k_mec') == 0
-    k_mec = .015;
-else
+if isfield(options,'k_mec')
     k_mec = options.k_mec;
+else
+    k_mec = 0.015;
+end
+if isfield(options,'r')
+    r = options.r;
+else
+    r = 18;
+end
+if isfield(options,'k_cc')
+    k_cc = options.k_cc;
+else
+    k_cc = 0.95;
+end
+if isfield(options,'T_3')
+    T_3 = options.T_3;
+else
+    T_3 = 1400;
+end
+if isfield(options,'eta_PiC')
+    eta_PiC = options.eta_PiC;
+else
+    eta_PiC = 0.9;
+end
+if isfield(options,'eta_PiT')
+    eta_PiT = options.eta_PiT;
+else
+    eta_PiT = 0.9;
 end
 
-%% Other parameters
 
-M_O2  = 31.99800e-3; % [kg/mol]
-M_N2  = 28.01400e-3;
-M_CO2 = 44.00800e-3;
-M_H2O = 18.01494e-3;
-M_air = .21*M_O2 + .79*M_N2;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cycle State 1 - Before Compression %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-p_ext = 100e3; % [Pa]
-
-R = 8.314472; % The ideal gas's constant [J/mol/K]
-R_O2  = R / M_O2; % [J/(kg*K)]
-R_N2  = R / M_N2; % [J/(kg*K)]
-R_CO2 = R / M_CO2; % [J/(kg*K)]
-R_H2O = R / M_H2O; % [J/(kg*K)]
-R_air = 287.058; % [J/(kg*K)]
-
-    function [X] = Cp_CO2(T)
-        T(T<300) = 300; T(T>5000) = 5000;
-        X = janaf('CO2',T) *1e3;
-    end
-
-    function [X] = Cp_H2O(T)
-        T(T<300) = 300; T(T>5000) = 5000;
-        X = janaf('H2O',T) *1e3;
-    end
-
-    function [X] = Cp_O2(T)
-        T(T<300) = 300; T(T>5000) = 5000;
-        X = janaf('O2',T) *1e3;
-    end
-
-    function [X] = Cp_N2(T)
-        T(T<300) = 300; T(T>5000) = 5000;
-        X = janaf('N2',T) *1e3;
-    end
-
-    function [X] = Cp_air(T)
-        T(T<300) = 300; T(T>5000) = 5000;
-        X = (.21*janaf('O2',T) + .79*janaf('N2',T)) *1e3;
-    end
-
-%% Calculations of all states such that
-% 1 -> 2 : polytropic compression
-% 2 -> 3 : isobaric warming
-% 3 -> 4 : polytropic relaxation
-% 4 -> 1 : isobaric coolingw
-%
-% In the combustion chamber where the compressed air is coming at (T_2,
-% p_2,h_2,s_2,e_2) at a certain flow m_a, we inject CH_4 (T_c,m_c)
-% so that the following transformation can happen to create energy :
-% CH_yO_x + w*(O_2 + 3.76*N_2) -> CO_2 + a*O_2 + b*H_2O + 3.76*w*N_2
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FIRST  STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-p_1 = p_ext;
+% Initial State
 T_1 = T_ext;
-h_1 = 1.006e3 * (T_1 - T_0);
-s_1 = 0.054e3;
+t_1 = T_ext + 273.15;
+t_0=t_1;
+p_1 = 1;
+
+c_pa = 1.006;
+h_1 = c_pa*T_1;
+s_1 = 0.058;
 e_1 = 0;
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SECOND STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cycle State 2 - After Compression %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-p_2 = p_1 *r;
+p_2 = r*p_1;                                                                
+R_sa = 287.058/1000;
 
-T_2 = 1674; T_it = 0;
-while abs(T_2-T_it) > 1e-5
-    T_it = T_2;
-    Cp_moy = integral(@Cp_air,T_1,T_2)/(T_2-T_1);
-    T_2 = T_1 * r ^(287.058/Cp_moy/eta_PiC); % cf. eq 3.19-3.22
+% T_2 iteration
+step = 1;
+t_2 = 1674;
+t_2_iter = 0;
+
+while abs(t_2-t_2_iter)>0.01
+    t_2_iter = t_2;
+    T_c1 = 300.*ones(floor(t_1-273.15)+1,1);
+    T_c2 = [300.*ones(floor(300-273.15)+1,1)' 301:step:t_2];
+    c_pa_moy1 = (mean(janaf('N2',T_c1))*0.79 + mean(janaf('O2',T_c1))*0.21);
+    c_pa_moy2 = (mean(janaf('N2',T_c2))*0.79 + mean(janaf('O2',T_c2)*0.21));
+    t_2 = t_1*r^((1/eta_PiC)*(R_sa*((t_2-273.15)- T_1)/(c_pa_moy2*(t_2-273.15)-c_pa_moy1*T_1))); % cf. eq 3.19-3.22
 end
 
-h_2 = h_1 + Cp_moy*(T_2 - T_1);
-s_2 = s_1 + Cp_moy*log(T_2/T_1) - R_air*log(r);
-e_2 = (h_2-h_1) - T_0*(s_2-s_1);
+T_2 = t_2-273.15;
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% THIRD  STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% COMBUSTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Computation of h_2, s_2, e_2
+c_pa_moy12 = (c_pa_moy2*T_2-c_pa_moy1*T_1)/(T_2-T_1); % cf. eq 3.22
+h_2 = h_1 + c_pa_moy12*(T_2-T_1); % formule enthalpie
+s_2 = s_1 + (1-eta_PiC)*c_pa_moy12*log(t_2/t_1); % cf. eq 3.15
+e_2 = (h_2-h_1)-(T_0+273.15)*(s_2-s_1); % cf. eq 1.19
 
-p_3 = p_2 *k_cc;
-x = 0; y = 4; LHV = 50.15e6;
-Cp_c = 35.639; % Mass heat of methane at standart temperature [J/(mol*K)]
-M_c  = (12.01+1.01*y+16*x)*1e-3; % Molar mass of methane [kg/mol]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cycle State 3 - After Combustion %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%syms lam
-a = @(lam) (lam-1)*(1+y/4-x/2); b = y/2;
-w = @(lam) lam*(1+y/4-x/2); % Stoechiometric coefficients
+t_3 = T_3 + 273.15;
+p_3 = k_cc*p_2;
 
-LHV = (-74.9e3 + 393.52e3 + b*241.80e3)/M_c; % [J/kg]
-LHV = 50.15e6;
+M_O2 = 31.998000000000000/1000;
+M_CO2 = 44.008000000000000/1000;
+M_H2 = 2.015940000000000/1000;
+M_H2O = 18.014940000000000/1000;
+M_N2 = 28.014000000000000/1000;
+M_CO = 28.0090000000000/1000;
+M_CH4 = 16.0430000000/1000;
 
-t = 273:int16(T_3);
-fun = @(lam) (T_3 -273.15) * (mean(Cp_CO2(t))*M_CO2 + b*mean(Cp_H2O(t))*M_H2O ...
-    + a(lam)*mean(Cp_O2(t))*M_O2 + 3.76*w(lam)*mean(Cp_N2(t))*M_N2) ...
-    - (T_2 -273.15) * w(lam)*integral(@Cp_air,T_0,T_2)/(T_2-T_0)*M_air/.21 ...
-    - 25*Cp_c - LHV*M_c; % Bilan d'enthalpie sur la combustion
-lambda = fsolve(fun,1); % Exces d'air [mol_air/mol_c]
+x = 0;
+y = 4;
+l_hv = 51.5*10^3;
 
-a = double(a(lambda)); w = double(w(lambda)); % [mol]
+% Air excess coefficient
+T_c2 = [300.*ones(floor(300-273.15)+1,1)' 301:step:t_2];
+T_c3 = [300.*ones(floor(300-273.15)+1,1)' 301:step:t_3];
 
-comp_f_tot = M_CO2 + b*M_H2O + a*M_O2 + 3.76*w*M_N2; % [kg]
-comp_f_CO2 = M_CO2 / comp_f_tot; % [-]
-comp_f_H2O = b*M_H2O / comp_f_tot; % [-]
-comp_f_O2  = a*M_O2 / comp_f_tot; % [-]
-comp_f_N2  = 3.76*w*M_N2 / comp_f_tot; % [-]
-R_f = R / comp_f_tot * (1+b+a+3.76*w); % [J/(kg*K)]
+f = @(lambda) l_hv*M_CH4 + T_2*(lambda*(1+(y-2*x)/4)*M_O2*mean(janaf('O2',T_c2))+ lambda*(1+(y-2*x)/4)*3.76*M_N2*mean(janaf('N2',T_c2)))...
+    - T_3*(M_CO2*mean(janaf('CO2',T_c3)) + y/2*M_H2O*mean(janaf('H2O',T_c3)) + (1+(y-2*x)/4)*(lambda-1)*M_O2*mean(janaf('O2',T_c3))...
+    + (1+(y-2*x)/4)*3.76*lambda*M_N2*mean(janaf('N2',T_c3))); % cf. Bilan enthalpique de réaction
 
-    function [X] = Cp_f(T)
-        T(T<300) = 300;
-        T(T>5000) = 5000;
+lambda = fsolve(f,1);
 
-        X = comp_f_CO2*janaf('CO2',T) + comp_f_H2O*janaf('H2O',T) + ...
-            comp_f_O2*janaf('O2',T) + comp_f_N2*janaf('N2',T); % [J/(kg*K)]
-        X = X *1e3;
-    end
+M_a = (32+3.76*28)*(1+(y-2*x)/4)/(12+y+16*x);
+M_s = 1 + M_a;
 
-m_a1 = (1+y/4-x/2) * (M_air/.21)/M_c; % [mol]
-m_ac = lambda * m_a1 ; % [-]
-m_ag = (1 + 1/m_ac)^(-1); % [-]
-Q_comb = LHV / m_ac;
+m_ac = M_a*lambda; % cf. eq 3.7
+m_fa = (1+ 1/(m_ac)); % cf. eq 3.8
+Q_comb = l_hv/m_ac; % cf. eq 3.9
 
-%h_3 = h_2 + integral(@Cp_air,T_2,T_3);
-h_3 = (Q_comb + h_2) * m_ag;
-%s_3 = mean(Cp_air(273:int16(T_3))) * log(T_3/T_0) - R_air * log(p_3/p_ext);
-%s_3 = s_2 + Q_comb * log(T_3/T_2) / (T_3 - T_2);
-s_3 = s_2 + integral(@Cp_f,T_2,T_3)*log(T_3/T_2)/(T_3-T_2) - R_f*log(k_cc);
-e_3 = (h_3-h_1) - T_0*(s_3-s_1);
+% Computation of h_3, s_3, e_3
+h_3 = (Q_comb+h_2)*(1/m_fa); % cf. 3.6
+c_3 = Q_comb/(T_3-T_2); % cf. Adiabatic combustion 
+s_3 = c_3*log(t_3/t_2)+0.1; % cf. Entropy of polytropic isobaric tranformation
+e_3 = (h_3-h_1)-(T_0+273.15)*(s_3-s_1); % cf. eq 1.19
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FOURTH STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cycle State 4 - After decompression %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-p_4 = p_ext;
+p_4 = p_3/(k_cc*r);
 
-T_4 = 1000; T_it = 0;
-while abs(T_4 - T_it) > 1e-5
-    T_it = T_4;
-    Cp_moy = integral(@Cp_f,T_3,T_4)/(T_4-T_3);
-    T_4 = T_3 * (1/k_cc/r) ^(R_f/Cp_moy*eta_PiT);
+% Flues composition
+v_1r = 1;
+v_2r = lambda*(1+(y-2*x)/4);
+v_3r = 3.76*lambda*(1+(y-2*x)/4);
+
+v_1p = 1;
+v_2p = y/2;
+v_3p = (lambda-1)*(1+(y-2*x)/4);
+v_4p = 3.76*lambda*(1+(y-2*x)/4);
+
+comp_f_CO2 = v_1p*M_CO2/(v_1p*M_CO2+v_2p*M_H2O+v_3p*M_O2+v_4p*M_N2);
+comp_f_H2O = v_2p*M_H2O/(v_1p*M_CO2+v_2p*M_H2O+v_3p*M_O2+v_4p*M_N2);
+comp_f_O2 = v_3p*M_O2/(v_1p*M_CO2+v_2p*M_H2O+v_3p*M_O2+v_4p*M_N2);
+comp_f_N2 = v_4p*M_N2/(v_1p*M_CO2+v_2p*M_H2O+v_3p*M_O2+v_4p*M_N2);
+
+R_f = (8.314/(comp_f_CO2*M_CO2+comp_f_H2O*M_H2O+comp_f_O2*M_O2+comp_f_N2*M_N2))/1000;
+
+% T_4 iteration
+step = 1;
+t_4 = 1674;
+t_4_iter = 0;
+
+while abs(t_4-t_4_iter)>0.01
+    t_4_iter = t_4;
+    T_c3 = [300.*ones(floor(300-273.15)+1,1)' 301:step:t_3];
+    T_c4 = [300.*ones(floor(300-273.15)+1,1)' 301:step:t_4];
+    c_pa_moy3 = mean(janaf('CO2',T_c3)*comp_f_CO2 + janaf('H2O',T_c3)*comp_f_H2O...
+              + janaf('O2',T_c3)*comp_f_O2 + janaf('N2',T_c3)*comp_f_N2);
+    c_pa_moy4 = mean(janaf('CO2',T_c4)*comp_f_CO2 + janaf('H2O',T_c4)*comp_f_H2O...
+              + janaf('O2',T_c4)*comp_f_O2 + janaf('N2',T_c4)*comp_f_N2);
+    t_4 = t_3*r^(-eta_PiT*(R_f*((t_4-273.15)-T_3)/(c_pa_moy4*(t_4-273.15)-c_pa_moy3*T_3))); % cf. eq 3.23-3.24
 end
 
-h_4 = h_3 + Cp_moy * (T_4 - T_3);
-%s_4 = s_3 + Cp_moy*log(T_4/T_3) - R_f*log(p_4/p_3);
-s_4 = s_1 + integral(@Cp_f,T_1,T_4)*log(T_4/T_1)/(T_4-T_0);
-e_4 = (h_4-h_1) - T_0*(s_4-s_1);
+T_4 = t_4-273.15;
+
+% Computation of h_4, s_4, e_4
+c_pa_moy34 = (c_pa_moy4*T_4-c_pa_moy3*T_3)/(T_4-T_3); % cf. eq 3.22
+h_4 = h_3 + c_pa_moy34*(T_4-T_3); % formule enthalpie
+s_4 = s_3 - (1-eta_PiT)/eta_PiT*c_pa_moy34*log(t_4/t_3); % cf. eq 3.16
+e_4 = (h_4-h_1)-(T_0+273.15)*(s_4-s_1); % cf. eq 1.19
+
+%%%%%%%%%%%%
+% Massflow %
+%%%%%%%%%%%%
+
+m_a = P_e/((1-k_mec)*(m_fa*(h_3-h_4)-(h_2-h_1))); % cf. eq 3.30
+m_f = m_fa*m_a;
+m_c = m_a/m_ac;
+
+%%%%%%%%%%%%%%
+% Combustion %
+%%%%%%%%%%%%%%
+
+m_CO2 = comp_f_CO2*m_f;
+m_H2O = comp_f_H2O*m_f;
+m_O2 = comp_f_O2*m_f;
+m_N2 = comp_f_N2*m_f;
+
+hhv = 55695;
+c_pc = 35.3/(1000*M_CH4);
+S_CH4 = 183.1/(1000*M_CH4);
+S_O2 = 202.8/(1000*M_O2);
+S_CO2 = 210.4/(1000*M_CO2);
+S_H2O = 69.5/(1000*M_H2O);
+
+T_ec = 300.*ones(floor(t_0-273.15),1)';
+
+e_c = hhv + 15*(c_pc + comp_f_O2/m_O2*mean(janaf('O2',T_ec))...
+    -comp_f_CO2/m_CO2*mean(janaf('CO2',T_ec)))...
+    -comp_f_H2O/m_H2O*mean(janaf('H2O',T_ec)) -t_0*(S_CH4+c_pc*log(t_0/273.15))...
+    -t_0*comp_f_O2/m_O2*(S_O2+mean(janaf('O2',T_ec))*log(t_0/273.15)-(8.314/M_O2)*log(20.64/100))...
+    +t_0*comp_f_CO2/m_CO2*(S_CO2+mean(janaf('CO2',T_ec))*log(t_0/273.15)-(8.314/M_CO2)*log(0.04/100))...
+    +t_0*comp_f_H2O/m_H2O*(S_H2O+mean(janaf('H2O',T_ec))*log(t_0/273.15)); % cf. eq 1.52
 
 
-%% WORK, MASS FLOW AND EFFICIENCY
+c_pg = comp_f_CO2*janaf('CO2',400) + comp_f_H2O*janaf('H2O',400)...
+     + comp_f_O2*janaf('O2',400) + comp_f_N2*janaf('N2',400);
+ 
+%%%%%%%%%%%%%%%%%%
+% Energetic loss %
+%%%%%%%%%%%%%%%%%%
 
-eta_mec = 1 - k_mec*((h_3-h_4)/m_ag + (h_2-h_1))/((h_3-h_4)/m_ag - (h_2-h_1));
-W_m = (h_3 - h_4)/m_ag - (h_2 - h_1); % [J/kg_air]
-P_m = P_e*1e3 / eta_mec; % [W]
+perte_mecen = k_mec*(m_f*(h_3-h_4)+m_a*(h_2-h_1)); % cf. eq 3.29
+perte_echen = m_f*(h_4-h_1); 
+W_m = m_fa*(h_3-h_4)-(h_2-h_1); % cf. eq 3.10
 
-A = [(h_1-h_2), 0, (h_3-h_4);
-     -1, lambda*m_a1, 0;
-     (1 + lambda*m_a1), 0, -lambda*m_a1];
-b = [P_m;0;0];
-m = A\b;
+%%%%%%%%%%%%%%%%%%
+% Exergetic loss %
+%%%%%%%%%%%%%%%%%%
 
-m_a = m(1);%P_m / W_m;  % [kg/s]
-m_c = m(2);%m_a / m_ac; % [kg/s]
-m_g = m(3);%m_a / m_ag; % [kg/s]
+perte_mecex = perte_mecen;
+perte_rotex = m_f*(e_3-e_4)-m_a*(e_2-e_1)-m_a*W_m; % cf. eq 3.34
+perte_combex = m_c*e_c-(m_f*e_3-m_a*e_2); % cf. eq 3.36
+perte_echex  = m_f*(e_4-e_1);
 
-m_CO2f = comp_f_CO2 * m_g;
-m_H2Of = comp_f_H2O * m_g;
-m_O2f  = comp_f_O2  * m_g;
-m_N2f  = comp_f_N2  * m_g;
+%%%%%%%%%%%%%%%%
+% Efficiencies %
+%%%%%%%%%%%%%%%%
 
-PCS = 55695e3;
-e_c = PCS + 15 * (Cp_c/M_c + comp_f_O2*Cp_O2(288) - comp_f_CO2*Cp_CO2(288) - comp_f_H2O*Cp_H2O(288)) ...
-    - 288.15 * (183.1/M_c + Cp_c/M_c*log(288.15/273.15)) ...
-    - 288.15 * (202.8/M_O2 + Cp_O2(288)*log(288.15/273.15) - R_O2*log(.2064)) * comp_f_O2 ...
-    + 288.15 * (210.4/M_CO2 + Cp_CO2(288)*log(288.15/273.15) - R_CO2*log(.0003)) * comp_f_CO2 ...
-    + 288.15 * (69.5/M_H2O + Cp_H2O(288)*log(288.15/273.15)) * comp_f_H2O;
+eta_cyclen = W_m/Q_comb; % cf. eq 3.28
+eta_mec = 1-(perte_mecen/(P_e+perte_mecen)); % cf. eq 3.30
+eta_toten = eta_mec*eta_cyclen; % cf. eq 3.31
+eta_cyclex = m_a*W_m/(m_f*e_3-m_a*e_2); % cf. eq 3.32
+eta_rotex = m_a*W_m/(m_f*(e_3-e_4)-m_a*(e_2-e_1)); % cf. eq 3.34
+eta_combex = (m_f*e_3-m_a*e_2)/(m_c*e_c); % cf. eq 3.36
 
-P_prim = m_c * LHV;
+%%%%%%%%%%%%%%%%%%%%%%%%
+% Allocation solutions %
+%%%%%%%%%%%%%%%%%%%%%%%%
 
-eta_cyclen = W_m / Q_comb;
-eta_toten  = eta_mec * eta_cyclen;
-eta_cyclex = P_m / (m_g*e_3 - m_a*e_2);
-eta_totex  = P_m*eta_mec / (m_c*e_c);
-eta_rotex  = P_m / (m_g*(e_3 - e_4) - m_a*(e_2 - e_1));
-eta_combex = (m_g*e_3 - m_a*e_2) / (m_c*e_c);
+% ETA vector
+ETA(1) = eta_cyclen; ETA(2) = eta_toten; ETA(3) = eta_cyclex; 
+ETA(4) = eta_rotex; ETA(5) = eta_combex
 
-P_1 = (h_1 * m_a) *1e-6;
-P_2 = (h_2 * m_a) *1e-6;
-P_3 = (h_3 * 450) *1e-6;
-P_4 = (h_4 * 450) *1e-6;
+% DATEN vector
+DATEN(1) = perte_mecen; DATEN(2) = perte_echen
 
-perte_mecen  = (P_m - P_e*1e3) *1e-6;
-perte_echen  = m_g * (h_4-h_1) *1e-6;
+% DATEX vector
+DATEX(1) = perte_mecex; DATEX(2) = perte_rotex; DATEX(3) = perte_combex; 
+DATEX(4) = perte_echex
 
-perte_mecex  = perte_mecen;
-perte_rotex  = (m_g*(e_3 - e_4) - m_a*(e_2 - e_1) - P_m) *1e-6;
-perte_combex = m_c*e_c * (1-eta_combex) *1e-6;
-perte_echex  = (m_g*e_4 - m_a*e_1) *1e-6;
+% DAT Vector
+DAT(1,1) = T_1; DAT(1,2) = T_2; DAT(1,3) = T_3; DAT(1,4) = T_4;
+DAT(2,1) = p_1; DAT(2,2) = p_2; DAT(2,3) = p_3; DAT(2,4) = p_4; 
+DAT(3,1) = h_1; DAT(3,2) = h_2; DAT(3,3) = h_3; DAT(3,4) = h_4; 
+DAT(4,1) = s_1; DAT(4,2) = s_2; DAT(4,3) = s_3; DAT(4,4) = s_4; 
+DAT(5,1) = e_1; DAT(5,2) = e_2; DAT(5,3) = e_3; DAT(5,4) = e_4; 
 
+% MASSFLOW vector
+MASSFLOW(1) = m_a; MASSFLOW(2) = m_c; MASSFLOW(3) = m_f; 
 
-%% RESULTS
+% COMBUSTION structure
+COMBUSTION.LHV = l_hv; COMBUSTION.e_c = e_c; COMBUSTION.lambda = lambda;
+COMBUSTION.Cp_g = c_pg; COMBUSTION.fum(1) = m_O2; COMBUSTION.fum(2) = m_N2;
+COMBUSTION.fum(3) = m_CO2; COMBUSTION.fum(4) = m_H2O;
 
-ETA = [eta_cyclen,eta_toten,eta_cyclex,eta_totex,eta_rotex,eta_combex]
-% [%]
+% Other calculations
+P_prim = P_e + perte_mecex + perte_rotex + perte_combex + perte_echex;
+Cp_g = COMBUSTION.Cp_g;
 
-DATEN = [perte_mecen, perte_echen] % [kW]
-
-DATEX = [perte_mecex, perte_rotex, perte_combex, perte_echex] % [kW]
-
-DAT = [T_1-273.15, T_2-273.15, T_3-273.15, T_4-273.15;... [Â°C]
-       p_1 *1e-5,  p_2 *1e-5,  p_3 *1e-5,  p_4 *1e-5;...  [bar]
-       h_1 *1e-3,  h_2 *1e-3,  h_3 *1e-3,  h_4 *1e-3;...  [kJ/kg]
-       s_1 *1e-3,  s_2 *1e-3,  s_3 *1e-3,  s_4 *1e-3;...  [kJ/(kg*K)]
-       e_1 *1e-3,  e_2 *1e-3,  e_3 *1e-3,  e_4 *1e-3]   % [kJ/kg]
-
-MASSFLOW = [m_a, m_c, m_g] % [kg/s]
-
-COMBUSTION = struct();
-COMBUSTION.LHV    = LHV; % [kJ/kg]
-COMBUSTION.e_c    = e_c *1e-3; % [kJ/kg]
-COMBUSTION.lambda = lambda; % [mol_air/mol_c]
-COMBUSTION.Cp_g   = Cp_f(400) *1e-3; % [kJ/(kg*K)]
-COMBUSTION.fum    = [m_O2f, m_N2f, m_CO2f, m_H2Of] % [kg/s]
-
-%% FIGURES
-
-FIG = [];
-
-if display == 1
+% Graph
+if display==1
     FIG(1) = figure;
     labels = {'1','2','3','4'};
     X = DAT(4,:); Y = DAT(3,:);
@@ -379,7 +391,7 @@ if display == 1
     title('H-S Graph');
     axis([0 2 0 1800]);
     ylabel('Enthalpy [kJ/kg]');
-    xlabel('Entropy [kJ/kg.K]')
+    xlabel('Entropy [kJ/kg.K]');
     
     FIG(2) = figure;
     labels = {'1','2','3','4'};
@@ -393,15 +405,22 @@ if display == 1
     ylabel('Temperature [K]');
     xlabel('Entropy [kJ/kg.K]');
     
-    FIG(3) = figure;
-    X = [P_e*1e-3 DATEX(2) DATEX(4) DATEX(1) DATEX(3)];
-    labels = {sprintf('Effective  Power \n (%g MW)', P_e*1e-3),...
-             sprintf('Turbine & Compressor \n Irreversibilities \n (%g MW)', perte_rotex),...
-             sprintf('Exhaust  Loss \n (%g MW)', perte_echex),...
-             sprintf('Mechanical \n Losses \n (%g MW)', perte_mecex),...
-             sprintf('Combustion \n Irreversibility \n (%g MW)', perte_combex)};
+    FIG(4) = figure;
+    X = [P_e DATEX(2) DATEX(4) DATEX(1) DATEX(3)];
+    labels = {sprintf('Effective  Power \n (%g MW)', P_e/10^6),...
+             sprintf('Turbine & Compressor \n Irreversibilities \n (%g MW)', perte_rotex/10^6),...
+             sprintf('Exhaust  Loss \n (%g MW)', perte_echex/10^6),...
+             sprintf('Mechanical \n Losses \n (%g MW)', perte_mecex/10^6),...
+             sprintf('Combustion \n Irreversibility \n (%g MW)', perte_combex/10^6)};
     pie(X,labels);
     title(sprintf('Primary Exergy Flux (%g MW)', P_prim/10^6));
-end
-end
+else FIG=0;
 
+% Display
+ETA
+DATEN
+DATEX
+DAT
+MASSFLOW
+COMBUSTION
+end
