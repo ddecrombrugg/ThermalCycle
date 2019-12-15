@@ -107,8 +107,6 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     if nargin<3
         display = 1;
         if nargin<2
-            constr = "pressure";
-            %constr = "vapor_ratio";
             options = struct();
             if nargin<1
                 P_e = 288; % [MW] Puissance énergétique de l'installation
@@ -197,7 +195,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     % options.x6 [-] : Vapor ratio [gaseous/liquid] (in french : titre)
     if isfield(options,'x_6')
         x_6 = options.x_6;
-        constr = "vapor_ratio";
+        constr = x_6;
     else
         x_6 = .89;
     end
@@ -205,13 +203,13 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     % options.p4 [bar] : High pressure after last reheating
     if isfield(options,'p_4')
         p_4 = options.p_4;
-        constr = "pressure";
+        constr = p_4;
     else
         p_4 = 70;
     end
 
     if ~exist('constr')
-        constr = "pressure";
+        constr = p_4;
     end
 
     % options.T_0 [°C] : Reference temperature
@@ -374,12 +372,10 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         end
 
         if exist('lambda')
-            constr_comb = "lambda";
+            constr_comb = lambda;
         else
-            constr_comb = "Tmax";
+            constr_comb = Tmax;
         end
-        %constr_comb = "";
-        %constr_comb = "Tmax";
 
         % options.T_exhaust [°C] : Temperature of exhaust gas out of the chimney
         if isfield(options,'T_exhaust')
@@ -397,7 +393,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         +(coeff1(5)./((T./1000).^2)),273.15,T_CH4)/(T_CH4-273.15) *1e-3;
 
     % Find the air excess
-    if constr_comb == "Tmax"
+    if constr_comb == Tmax
         a = @(lam) (lam-1)*(1+y/4-x/2); b = y/2;
         w = @(lam) lam*(1+y/4-x/2); % Stoechiometric coefficients
 
@@ -413,7 +409,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     w = lambda*(1+y/4-x/2); % Stoechiometric coefficients
 
     % Find the max temperature in the combustion chamber
-    if constr_comb == "lambda"
+    if constr_comb == lambda
         Tmax = 1400; iter = 0;
         while abs(Tmax - iter) > 1
             iter = Tmax; t = 273:int16(Tmax+273.15);
@@ -554,7 +550,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         x_4 = []; x_5 = [];
         X_4 = []; X_5 = [];
         st_4 = {}; st_5 = {};
-    elseif constr == "pressure"
+    elseif constr == p_4
         r = (p_4/p_3).^(1/reheat) * lam_chaud^(1-1/reheat);
 
         p_4  = p_3*r;
@@ -608,7 +604,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         e_6  = (h_6-h_0) - (T_0+273.15)*(s_6-s_0);
         x_6  = XSteam('x_ph',p_6,h_6);
         v_6  = XSteam('v_ph',p_6,h_6);
-    elseif constr == "vapor_ratio"
+    elseif constr == x_6
         T_6 = T_7;
         p_6 = XSteam('psat_T',T_6);
         h_6 = XSteam('h_Tx',T_6,x_6);
