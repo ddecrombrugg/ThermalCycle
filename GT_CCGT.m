@@ -210,7 +210,7 @@ e_2 = (h_2-h_1) - T_0*(s_2-s_1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 p_3 = p_2 * k_cc;
-x = 0; y = 4; LHV = 50.15e6; T_CH4 = 298.15
+x = 0; y = 4; LHV = 50.15e6; T_CH4 = 298.15;
 coeff1 = [-.703029 108.4773 -42.52157 5.862788 .678565];
 Cp_CH4 = integral(@(T) coeff1(1)+coeff1(2)*(T./1000)+coeff1(3)*((T./1000).^2)+coeff1(4)*((T./1000).^3)+(coeff1(5)./((T./1000).^2)),273.15,T_CH4)/(T_CH4-273.15);
 %Cp_CH4 = 35.639; % Mass heat of methane at standart temperature [J/(mol*K)]
@@ -267,7 +267,7 @@ p_4 = p_ext;
 T_4 = 1000; T_it = 0;
 while abs(T_4 - T_it) > 1e-5
     T_it = T_4;
-    Cp_moy = integral(@Cp_f,300,T_4)/(T_4-300);
+    Cp_moy = integral(@Cp_f,T_3,T_4)/(T_4-T_3);
     %Cp_moy = integral(@Cp_f,T_3,T_4)/(T_4-T_3);
     T_4 = T_3 * (1/k_cc/r) ^(R_f/Cp_moy*eta_PiT);
 end
