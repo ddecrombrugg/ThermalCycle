@@ -5,8 +5,8 @@ if nargin<2
     noRef=1;% Pas de reference
     if nargin<1
         path='C:\Users\Louis\Desktop\Last3H\ThermalCycle-master (2)\Gr30\';%'.\GrXX\';%here
-        TestGT     = 1;
-        TestST     = 0;
+        TestGT     = 0;
+        TestST     = 1;
         TestCCGT2P = 0;
         TestCCGT3P = 1;
         TestCT     = 1;
