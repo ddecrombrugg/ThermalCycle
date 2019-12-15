@@ -6,8 +6,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% GAS TURBINE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% eta_cyclen pour différentes températures en fonction de r
-	% {
+% eta_toten pour différentes températures en fonction de r
+	%{
 	options = struct();
 	P_e = 230;
 	display = 0;
@@ -137,12 +137,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% STEAM TURBINE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% eta_toten en fonction de la pression maximale
 	%{
 	options = struct();
 	P_e = 288e3;
 	display = 0;
 
-	p_max = 100:10:400; eta_totex = zeros(length(p_max),1);
+	options.T_max = 560;
+	p_max = 100:20:400; eta_totex = zeros(length(p_max),1);
 	for i = 1:length(p_max)
 		options.p3_hp = p_max(i)
 		ETA = ST(P_e,options,display);
@@ -150,38 +152,68 @@
 	end
 
 	figure('Color','w'); grid;
-	plot(p_max,eta_totex);
-	legend('565 [\circC]');
+	my_fig = plot(p_max,eta_totex);
+	my_fig.LineWidth = .7;
+	legend('560 [\circC]');
 	xlabel('$p_{max}$ [bar]','Interpreter','latex');
 	ylabel('$\eta_{totex}$ [\%]','Interpreter','latex');
 	%}
 
+% eta_toten en fonction de la pression maximale
+	% {
+	options = struct();
+	P_e = 288e3;
+	display = 1;
+	options.p3_hp = 200;
+	T_max = 300:10:600;
+	options.lam_chaud = 1;
+	options.lam_exch = 1;
+	options.nsout = 4;
+	options.drumFlag = 0;
+	eta_totex = zeros(length(T_max),1);
+	for i = 1:length(T_max)
+		options.T_max = T_max(i)
+		ETA = ST(P_e,options,display);
+		eta_totex(i) = ETA(4);
+	end
+
+	figure('Color','w'); grid;
+	my_fig = plot(T_max,eta_totex);
+	my_fig.LineWidth = .7; 
+	legend('200 [bar]');
+	xlabel('$T_{max}$ ^[\circC]','Interpreter','latex');
+	ylabel('$\eta_{totex}$ [\%]','Interpreter','latex');
+	%}
+
+% Rendement exergétique total en fonction du nombre de soutirages
 	%{
 	options = struct();
 	P_e = 288e3;
 	display = 0;
 	options.p3_hp = 400;
-	options.nsout = 20;
-	options.TpinchEx = 3;
-	options.TpinchSub = .5;
+	options.T_max = 600;
+	options.nsout = 15;
+	options.TpinchEx = 0;
+	options.TpinchSub = 3;
 	options.eta_SiT = .927;
+	options.lam_exch = 1;
 
-	reheat = 0:10;
+	reheat = 1:10;
 	eta_totex = zeros(length(reheat),2);
 	for i = 1:length(reheat)
 		options.reheat = reheat(i);
 		options.drumFlag = 1 
-		ETA = ST(P_e,options,display); 
-		eta_totex(i,1) = ETA(4);
-		options.drumFlag = 0
 		ETA = ST(P_e,options,display);
-		eta_totex(i,2) = ETA(4);
+		eta_totex(i,1) = ETA(4);
+		%options.drumFlag = 0
+		%ETA = ST(P_e,options,display);
+		%eta_totex(i,2) = ETA(4);
 	end
 
 	figure('Color','w'); grid; hold on;
 	p = plot(reheat,eta_totex(:,1),'.-'); p.MarkerSize = 10;
-	p = plot(reheat,eta_totex(:,2),'.-'); p.MarkerSize = 10;
-	legend('avec tambour','sans tambour');
+	%p = plot(reheat,eta_totex(:,2),'.-'); p.MarkerSize = 10;
+	legend('avec tambour')%,'sans tambour');
 	xlabel('Nombre de rechauffes, $n_{reheat}$','Interpreter','latex');
 	ylabel('$\eta_{totex}$ [\%]','Interpreter','latex');
 	%}
@@ -193,7 +225,7 @@
 	options.reheat = 1;
 	options.TpinchEx = 3;
 
-	nsout = 5:20; eta_totex = zeros(length(nsout),2);
+	nsout = 2:20; eta_totex = zeros(length(nsout),2);
 	for i = 1:length(nsout)
 		options.nsout = nsout(i);
 		options.drumFlag = 1

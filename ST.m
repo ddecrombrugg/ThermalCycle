@@ -105,7 +105,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     if nargin<3
-        display = 0;
+        display = 1;
         if nargin<2
             constr = "pressure";
             %constr = "vapor_ratio";
@@ -147,7 +147,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     % options.T_max [°C] : Maximum steam temperature
     if isfield(options,'T_max')
         T_max = options.T_max;
-        if T_max > 560
+        if T_max > 1e3
             fprintf('\n    WARNING : The maximum temperature for the water is 560°C because');
             fprintf('\n              the container begin to smell at 565°C.');
             T_max = 560;
@@ -195,7 +195,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     end
 
     % options.x6 [-] : Vapor ratio [gaseous/liquid] (in french : titre)
-    if isfield(options,'x_6') && options.x_6 >= .88
+    if isfield(options,'x_6')
         x_6 = options.x_6;
         constr = "vapor_ratio";
     else
@@ -225,7 +225,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
     if isfield(options,'TpinchSub')
         TpinchSub = options.TpinchSub;
     else
-        TpinchSub = 5;
+        TpinchSub = 4;
     end
 
 
@@ -389,7 +389,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         end
 
     M_c  = (12.01+1.01*y+16*x)*1e-3; % Molar mass of carburant [kg/mol]
-    LHV  = (393.6 + 102.2*y - (110.6 + 204.4*y)*x/(1+y/2)) / M_c % [kJ/kg]
+    LHV  = (393.6 + 102.2*y - (110.6 + 204.4*y)*x/(1+y/2)) / M_c; % [kJ/kg]
     T_CH4 = 298.15;
     coeff1 = [-.703029 108.4773 -42.52157 5.862788 .678565];
     Cp_CH4 = integral(@(T) coeff1(1)+coeff1(2)*(T./1000)...
@@ -417,12 +417,11 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         Tmax = 1400; iter = 0;
         while abs(Tmax - iter) > 1
             iter = Tmax; t = 273:int16(Tmax+273.15);
-            Tmax = (w*integral(@Cp_air,273,473)/200*M_air/.21 + LHV*M_c + Cp_CH4*25) /...
+            Tmax = (w*1.006/15*M_air/.21 + LHV*M_c + Cp_CH4*25) /...
                 (mean(Cp_CO2(t))*M_CO2 + b*mean(Cp_H2O(t))*M_H2O ...
                 + a*mean(Cp_O2(t))*M_O2 + 3.76*w*mean(Cp_N2(t))*M_N2);
         end
     end
-    Tmax
 
     comp_f_tot = M_CO2 + b*M_H2O + a*M_O2 + 3.76*w*M_N2; % [kg]
     comp_f_CO2 = M_CO2 / comp_f_tot; % [-]
@@ -478,10 +477,10 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 
     % First state of comburant
     f = 1.041; e_c = f * LHV;
-
+    Tmax
     % State after combustion
     T_h = Tmax; % Temperature after combustion [K]
-    h_h = Cp_f(273.15,T_h+273.15) * T_h % Enthalpy after combustion [kJ/kg]
+    h_h = Cp_f(273.15,T_h+273.15) * T_h; % Enthalpy after combustion [kJ/kg]
     s_h = sa_0 + Cp_f(Ta_0+273.15,T_h+273.15)*log((Ta_0+273.15)/(T_h+273.15));
     e_h = (h_h-ha_0) - Ta_0*(s_h-sa_0);
 
@@ -626,7 +625,7 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
 
         r = (p_5e*lam_chaud/p_3).^(1/reheat) * lam_chaud^(1-1/reheat);
 
-        p_4 = p_3 * r;
+        p_4 = p_3 * r
         h_4s = XSteam('h_ps',p_4,s_3);
         h_4  = h_3 - eta_SiT1 * (h_3-h_4s); % eq2.9
         T_4  = XSteam('T_ph',p_4,h_4);
@@ -998,11 +997,7 @@ DAT = [state_1,state_2,state_3,state_4,state_5,state_6,state_7,state_8,...
         W_m_en  = W_mT_en - W_mC_en;
         W_m_ex  = W_mT_ex - W_mC_ex;
 
-        if drumFlag
-            Q_I = (h_3-h_9i(drum)); 
-        else
-            Q_I = (h_3-h_8);
-        end
+        Q_I = (h_3-h_2);
         n_rh = 1; E_I = (e_3-e_2);
         while n_rh < reheat
             Q_I  = Q_I  + (h_5(n_rh) - h_4(n_rh))*(1-sum(X_6i(1:n_rh)));
@@ -1011,32 +1006,39 @@ DAT = [state_1,state_2,state_3,state_4,state_5,state_6,state_7,state_8,...
         end
         Q_II = h_6*X_6 + h_7i(end)*X_7i(end) - h_7*X_7;
 
+    if drumFlag
+        eta_cyclen  = W_m_en / (Q_I + e_2-e_9i(drum))
+    else
+        eta_cyclen  = W_m_en / (Q_I + e_2-e_8);
+    end
+    eta_gen     = 1 - 1e-2 - eps_ech
+    eta_toten   = eta_mec * eta_cyclen * eta_gen
 
-    eta_cyclen  = W_m_en / Q_I;
-    eta_gen     = 1 - 1e-2 - eps_ech;
-    eta_toten   = eta_mec * eta_cyclen * eta_gen;
+    m_v = P_e / eta_mec / W_m_en
+    m_c = m_v * Q_I / (eta_gen * LHV)
+    m_a = m_ac * m_c
+    m_f = m_a  / m_ag
+    m_w = m_v * Q_II / (h_o-h_i)
 
-    m_v = P_e / eta_mec / W_m_en;
-    m_c = m_v * Q_I / (eta_gen * LHV);
-    m_a = m_ac * m_c;
-    m_f = m_a  / m_ag;
-    m_w = m_v * Q_II / (h_o-h_i);
+    eta_rotex   = W_m_en / W_m_ex
 
-    eta_rotex   = W_m_en / W_m_ex;
+    eta_condex  = (e_6-e_7) / e_6
 
-    eta_condex  = (e_6-e_7) / e_6;
-
-    eta_chemex  = (e_h-e_e) / (e_h-.04)
-    eta_combex  = (m_f*(e_h-.04)) / (m_c*e_c)
-    eta_transex = m_v*E_I / (m_f*(e_h-e_e))
-    eta_gex     = eta_transex * eta_chemex * eta_combex;
+    eta_gex     = 1/f * eta_gen * E_I/Q_I
+    eta_chemex  = (e_h-e_e) / e_h
+    eta_combex  = (m_f*(e_h-.04)) / (m_c*e_c);
+    eta_transex = m_v*E_I / (m_f*(e_h-e_e));
 
     if drumFlag
-        eta_cyclex  = W_m_en / (e_3-e_9i(drum+1));
+        eta_cyclex  = W_m_en / (e_3-e_9i(drum+1))
     else
         eta_cyclex  = W_m_en / (e_3-e_1);
     end
-    eta_totex   = eta_mec * eta_gex * eta_cyclex;
+    eta_totex   = eta_mec * eta_gex * eta_cyclex
+    
+    e_c = P_e / m_c / eta_totex;
+    eta_combex  = (m_f*e_h) / (m_c*e_c)
+    eta_transex = eta_gex / eta_chemex / eta_combex
 
     ETA = [eta_cyclen,eta_toten,eta_cyclex,eta_totex,eta_gen, ...
             eta_gex,eta_combex,eta_chemex,eta_condex,eta_transex];
@@ -1099,7 +1101,7 @@ if display
     samp = 20; lw = .75;
     %TS - graph
         FIG(1) = figure('Color','w'); hold on; grid;
-        xlabel('entropie, $s$ [kJ/(kg $^\circ$K)]','Interpreter','latex');
+        xlabel('entropie, $s$ [kJ/(kg K)]','Interpreter','latex');
         ylabel('temperature, $T$ [$^\circ$C]','Interpreter','latex');
 
         T = linspace(0,373.9458,1e2);
@@ -1192,7 +1194,7 @@ if display
 
     %sh - graph
         FIG(2) = figure('Color','w'); hold on; grid;
-        xlabel('entropie, $s$ [kJ/(kg $^\circ$K)]','Interpreter','latex');
+        xlabel('entropie, $s$ [kJ/(kg K)]','Interpreter','latex');
         ylabel('enthalpie, $h$ [kJ/kg]','Interpreter','latex');
 
         plot([sL,flip(sV)],[hL,flip(hV)],'k-.');
@@ -1265,11 +1267,29 @@ if display
 
     % pie chart - energy
         FIG(4) = figure('Color','w'); grid;
+        Irr_van = abs(X_7i(end)*(h_70-h_0 + T_0*(XSteam('s_ph',p_7,h_70)-s_0)));
+        for i = 1:nsout
+            e = (h_7i(i)-h_0) + T_0*(XSteam('s_ph',p_7i(i+1),h_7i(i))-s_0);
+            Irr_van = Irr_van + abs(X_7i(i)*(e - e_7i(i)));
+        end
         if drumFlag
-            Irr_drum = m_v*(X_9i(drum+1)*h_9i(drum+1) + X_7i(drum-1)*h_7i(drum-1) ...
-                + X_6i(drum)*h_6i(drum) - h_7i(drum));
+            Irr_drum = m_v*(X_9i(drum+1)*e_9i(drum+1) + X_7i(drum-1)*e_7i(drum-1) ...
+                + X_6i(drum)*e_6i(drum) - e_7i(drum));
 
-            X = [P_e DATEX(1) DATEX(3:end),Irr_drum];
+            X = [P_e DATEX(1) DATEX(3:end),Irr_drum,Irr_van];
+            pie(X,{'','','','','','','','',''});
+            legend(sprintf('Puissance effective : %g [MW]',P_e*1e-3),...
+                sprintf('Pertes mecaniques : %.3g [MW]',DATEX(1)*1e-3),...
+                sprintf('Irr. aux turbines : %.5g [MW]',DATEX(3)*1e-3),...
+                sprintf('Irr. a la combustion : %.5g [MW]',DATEX(4)*1e-3),...
+                sprintf('Irr. au condenseur : %.5g [MW]',DATEX(5)*1e-3),...
+                sprintf('Pertes a la cheminee : %.5g [MW]',DATEX(6)*1e-3),...
+                sprintf('Irr. aux echangeurs : %.5g [MW]',DATEX(7)*1e-3),...
+                sprintf('Irr. a la bache : %5g [MW]',Irr_drum*1e-3),...
+                sprintf('Irr. aux vannes : %5g [MW]',Irr_van*1e-3),...
+                'Location','southoutside');
+        else
+            X = [P_e DATEX(1) DATEX(3:end),Irr_van];
             pie(X,{'','','','','','','',''});
             legend(sprintf('Puissance effective : %g [MW]',P_e*1e-3),...
                 sprintf('Pertes mecaniques : %.3g [MW]',DATEX(1)*1e-3),...
@@ -1278,18 +1298,7 @@ if display
                 sprintf('Irr. au condenseur : %.5g [MW]',DATEX(5)*1e-3),...
                 sprintf('Pertes a la cheminee : %.5g [MW]',DATEX(6)*1e-3),...
                 sprintf('Irr. aux echangeurs : %.5g [MW]',DATEX(7)*1e-3),...
-                sprintf('Irr. au tambour : %5g [MW]',Irr_drum*1e-3),...
-                'Location','southoutside');
-        else
-            X = [P_e DATEX(1) DATEX(3:end)];
-            pie(X,{'','','','','','',''});
-            legend(sprintf('Puissance effective : %g [MW]',P_e*1e-3),...
-                sprintf('Pertes mecaniques : %.3g [MW]',DATEX(1)*1e-3),...
-                sprintf('Irr. aux turbines : %.5g [MW]',DATEX(3)*1e-3),...
-                sprintf('Irr. a la combustion : %.5g [MW]',DATEX(4)*1e-3),...
-                sprintf('Irr. au condenseur : %.5g [MW]',DATEX(5)*1e-3),...
-                sprintf('Pertes a la cheminee : %.5g [MW]',DATEX(6)*1e-3),...
-                sprintf('Irr. aux echangeurs : %.5g [MW]',DATEX(7)*1e-3),...
+                sprintf('Irr. aux vannes : %5g [MW]',Irr_van*1e-3),...
                 'Location','southoutside');
         end
 end
