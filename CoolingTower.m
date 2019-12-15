@@ -53,7 +53,7 @@ function [DAT_WATER DAT_AIR MASSFLOW] = CoolingTower(P_w,options)
 if nargin<2
     options=struct();
     if nargin<1
-        P_W=200e3;%200MW_heat
+        P_w=200e3;%200MW_heat
     end
 end
 
@@ -122,7 +122,7 @@ DAT_AIR = [Tdb_in, Tdb_out; h_in/1000, h_out/1000; w_in, w_out; phi_in/100, phi_
 
 %% MASSFLOW
 cp_e = 4.18;
-MASSFLOW(1) = P_W/(cp_e*(Tw_out-Tw_in));
+MASSFLOW(1) = P_w/(cp_e*(Tw_out-Tw_in));
 MASSFLOW(3) = (MASSFLOW(1)*(XSteam('hL_T',Tw_out)-XSteam('hL_T',Tw_in)))...
             /((DAT_AIR(2,2)-DAT_AIR(2,1))-(DAT_AIR(3,2)-DAT_AIR(3,1))*XSteam('h_pT',1,Tw_in));
 MASSFLOW(2) = MASSFLOW(3)*(DAT_AIR(3,2)-DAT_AIR(3,1));

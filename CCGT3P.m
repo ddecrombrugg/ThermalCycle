@@ -276,7 +276,7 @@ T_4 = XSteam('T_ph',p_4,h_4);
 e_4 = (h_4-h_0) - (T_0+273.15)*(s_4-s_0);
 
 %% Gas Turbine
-[ETA_GT,DATEN_GT,DATEX_GT,DAT_GT,MASSFLOW_GT,COMBUSTION_GT,Cp_g,FIG] = GT_CCGT(P_eg,optionsGT,display);
+[ETA_GT,DATEN_GT,DATEX_GT,DAT_GT,MASSFLOW_GT,COMBUSTION_GT,Cp_g,FIG] = GT_CCGT(P_eg,options,display);
 
 p_4g = DAT_GT(2,4);
 T_4g = DAT_GT(1,4)+273.15; 
@@ -367,8 +367,8 @@ ETA(11) = QI_ex/(m_f*(e_4f-e_5f));
 DAT_plot = [T_2, T_3, T_4, T_5, T_6, T_7, T_8, T_8p, T_8pp, T_9, T_9p, T_9pp, T_10p, T_10pp;...
             h_2, h_3, h_4, h_5, h_6, h_7, h_8, h_8p, h_8pp, h_9, h_9p, h_9pp, h_10p, h_10pp;
             s_2, s_3, s_4, s_5, s_6, s_7, s_8, s_8p, s_8pp, s_9, s_9p, s_9pp, s_10p, s_10pp];
-        
-if display==1    
+FIG = [];
+if display    
     Tplot = linspace(0.01,373.9458,1000);
     for i=1:1000
         sL_plot(i) = XSteam('sL_T',Tplot(i));
