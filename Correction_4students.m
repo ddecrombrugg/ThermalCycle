@@ -4,14 +4,16 @@ function Correction_4students(path)
 if nargin<2
     noRef=1;% Pas de reference
     if nargin<1
-        path='';%'.\GrXX\';%here
+        path='C:\Users\Louis\Desktop\Last3H\ThermalCycle-master (2)\Gr30\';%'.\GrXX\';%here
         TestGT     = 1;
-        TestST     = 1;
+        TestST     = 0;
         TestCCGT2P = 0;
-        TestCCGT3P = 0;
-        TestCT     = 0;
+        TestCCGT3P = 1;
+        TestCT     = 1;
     end
 end
+
+
 
 addpath(path)
 fprintf('\n ----------------------------------------------------------------')
@@ -40,6 +42,7 @@ if TestGT
   
     try % I test the default case:
         [ETA DATEN DATEX DAT MASSFLOW COMBUSTION Cp_g  FIG] = GT();
+        disp('Test1 GT Ok');
     catch
         disp('Basic GT failed');
     end
@@ -61,6 +64,7 @@ if TestGT
         
     try
         [ETA DATEN DATEX DAT MASSFLOW COMBUSTION Cp_g ] = GT(P_e,options,display);
+        disp('Test2 GT Ok');
         %    I compute your score : 
     catch
         disp('GT with assistant inputs failed');
@@ -81,7 +85,8 @@ if TestST
     display=1;
     
     try % <=> compare with student results
-        [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,options,display);        
+        [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,options,display); 
+        disp('Test1 ST Ok');
     catch
         disp('Basic ST failed');
         display=0;
@@ -103,6 +108,7 @@ if TestST
     
     try % <=> compare with student results
         [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,options,display);
+        disp('Test2 ST Ok');
     catch
         disp('Basic ST failed');
         display=0;
@@ -134,6 +140,7 @@ if TestCCGT3P
     
     try % <=> compare with student results
         [ETA MASSFLOW FIG] = CCGT3P(P_eg,struct(),1);
+        disp('Test CCGT3P Ok');
     catch
         disp('Basic CCGT3P failed');
     end
@@ -161,6 +168,7 @@ if TestCT
    
     try
         [DAT_WATER DAT_AIR MASSFLOW] = CoolingTower(P_w,options);
+        disp('Test CT Ok');
     catch
         disp('Basic CT failed');
     end
