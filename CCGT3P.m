@@ -61,7 +61,6 @@ if nargin<3
     display=1;
    if nargin<2
        options=struct();
-       optionsGT = struct();
        if nargin<1
            P_eg=225e3;%100MW
        end
@@ -277,7 +276,7 @@ T_4 = XSteam('T_ph',p_4,h_4);
 e_4 = (h_4-h_0) - (T_0+273.15)*(s_4-s_0);
 
 %% Gas Turbine
-[ETA_GT,DATEN_GT,DATEX_GT,DAT_GT,MASSFLOW_GT,COMBUSTION_GT,Cp_g,FIG] = GT_CCGT(P_eg,optionsGT,display);
+[ETA_GT,DATEN_GT,DATEX_GT,DAT_GT,MASSFLOW_GT,COMBUSTION_GT,Cp_g,FIG] = GT_CCGT(P_eg,options,display);
 
 p_4g = DAT_GT(2,4);
 T_4g = DAT_GT(1,4)+273.15; 
@@ -345,16 +344,17 @@ P_mov_IP = MASSFLOW(2)*(h_5-h_6);
 P_mov_LP = MASSFLOW(3)*(h_6-h_7);
 P_mov = P_mov_HP+P_mov_IP+P_mov_LP;
 
-Pmcy_ST = (P_mov-P_op);
-P_elec_ST = Pmcy_ST*eta_mec;
+P_mcy_ST = (P_mov-P_op);
 P_elec_GT = P_eg;
+P_elec_ST = P_mcy_ST*eta_mec;
+
 QI = m_vHP*(h_3-h_2)+m_vHP*(h_5-h_4)+m_vMP*(h_5-h_2)+m_vLP*(h_6-h_2);
 QI_ex = m_vHP*(e_3-e_2)+m_vHP*(e_5-e_4)+m_vMP*(e_5-e_2)+m_vLP*(e_6-e_2);
 
-ETA(1) = Pmcy_ST/QI;
+ETA(1) = P_mcy_ST/QI;
 ETA(2) = ETA_GT(1);
 ETA(3) = (P_elec_ST*10^3+P_elec_GT*10^3)/(m_c*LHV);
-ETA(4) = Pmcy_ST/QI_ex;
+ETA(4) = P_mcy_ST/QI_ex;
 ETA(5) = ETA_GT(3);
 ETA(6) = (P_elec_ST+P_elec_GT)/(m_c*e_c);
 ETA(7) = QI/(m_c*LHV/1000);
@@ -366,9 +366,9 @@ ETA(11) = QI_ex/(m_f*(e_4f-e_5f));
 %% FIGURES
 DAT_plot = [T_2, T_3, T_4, T_5, T_6, T_7, T_8, T_8p, T_8pp, T_9, T_9p, T_9pp, T_10p, T_10pp;...
             h_2, h_3, h_4, h_5, h_6, h_7, h_8, h_8p, h_8pp, h_9, h_9p, h_9pp, h_10p, h_10pp;
-            s_2, s_3, s_4, s_5, s_6, s_7+.1, s_8, s_8p, s_8pp, s_9, s_9p, s_9pp, s_10p, s_10pp];
-        
-if display==1    
+            s_2, s_3, s_4, s_5, s_6, s_7, s_8, s_8p, s_8pp, s_9, s_9p, s_9pp, s_10p, s_10pp];
+FIG = [];
+if display    
     Tplot = linspace(0.01,373.9458,1000);
     for i=1:1000
         sL_plot(i) = XSteam('sL_T',Tplot(i));
@@ -400,7 +400,7 @@ if display==1
     text(DAT_plot(3,:),DAT_plot(1,:),labels,'FontSize',12,'VerticalAlignment','bottom','HorizontalAlignment','right')
     xlabel('Entropy [kJ/kgK]');
     ylabel('Temperature [°C]');
-    title('T-S Diagram');
+    title('T-S Diagram of CCGT');
     
     FIG(2) = figure;
     plot(sV_plot,hV_plot,'b','LineWidth',2);
@@ -415,10 +415,10 @@ if display==1
         scatter(vecs(1),vech(1),'k','filled','Linewidth',2);
     end
     plot([s_2 s_7],[h_2 h_7],'r','Linewidth',2);
-    scatter([s_2 s_7+.1],[h_2 h_7],'k','filled','Linewidth',2);
+    scatter([s_2 s_7],[h_2 h_7],'k','filled','Linewidth',2);
     xlabel('Entropy [kJ/kgK]');
     ylabel('Enthalpy [kJ/kg]');
-    title('H-S Diagram'); 
+    title('H-S Diagram of CCGT'); 
 end
 
 end
