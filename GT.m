@@ -93,7 +93,7 @@ function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
     if isfield(options,'T_0')
         T_0 = options.T_0 +273.15;
     else
-        T_0 = 273.15;
+        T_0 = 15 +273.15;
     end
 
     if isfield(options,'T_ext')
@@ -158,7 +158,7 @@ function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
     R_H2O = R / M_H2O; % [kJ/(kg*K)]
     R_air = 287.058e-3; % [kJ/(kg*K)]
 
-    T_vect = [ones(1,300)*300,300:5000];
+    T_vect = [ones(1,300)*300,301:5000];
     Cp_O2  = janaf('O2',T_vect); % [J/(kg*K)]
     Cp_N2  = janaf('N2',T_vect);
     Cp_CO2 = janaf('CO2',T_vect);
@@ -171,6 +171,7 @@ function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% REFERENCE  STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FIRST  STATE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -220,11 +221,11 @@ function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
     a = @(lam) (lam-1)*(1+y/4-x/2); b = y/2;
     w = @(lam) lam*(1+y/4-x/2); % Stoechiometric coefficients
 
-    t = 273:int16(T_3);
+    t = 273:ceil(T_3);
     fun = @(lam) (T_3 -273.15) * (mean(Cp_CO2(t))*M_CO2 + b*mean(Cp_H2O(t))*M_H2O...
         + a(lam)*mean(Cp_O2(t))*M_O2 + 3.76*w(lam)*mean(Cp_N2(t))*M_N2) ...
-        - (T_2 -273.15) * w(lam)*integral(@Cp_air,T_0,T_2)/(T_2-T_0)*M_air/.21 ...
-        - 25*Cp_CH4 - LHV*M_c; % Bilan d'enthalpie sur la combustion
+        - w(lam)*integral(@Cp_air,273,T_2)*M_air/.21 - 25*Cp_CH4 - LHV*M_c;
+    % Bilan d'enthalpie sur la combustion
     opt = optimset('Display','off');
     lambda = fsolve(fun,1,opt); % Exces d'air [mol_air/mol_c]
 
@@ -355,48 +356,6 @@ function [ETA, DATEN, DATEX, DAT, MASSFLOW, COMBUSTION, Cp_g, FIG] = ...
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 FIG = [];
-    %{
-samp = 25;
-    p_12 = linspace(p_1,p_2,samp+1); T_12 = [T_1,zeros(1,samp)];
-    h_12 = [h_1,zeros(1,samp)]; s_12 = [s_1,zeros(1,samp)];
-
-    p_23 = linspace(p_2,p_3,samp+1); T_23 = linspace(T_2,T_3,samp+1);
-    p_23 = p_23(2:end); T_23 = T_23(2:end);
-    h_23 = zeros(1,samp); s_23 = zeros(1,samp);
-
-    p_34 = linspace(p_3,p_4,samp+1); T_34 = [T_3,zeros(1,samp)];
-    h_34 = [h_3,zeros(1,samp)]; s_34 = [s_3,zeros(1,samp)];
-
-    p_41 = p_1*ones(1,samp+2); T_41 = linspace(T_4,T_1,samp+2);
-    h_41 = [h_4,zeros(1,samp),h_1]; s_41 = [s_4,zeros(1,samp),s_1];
-    for i = 1:samp
-        [T_12(i+1),Cp] = Compression(p_12(i+1)/p_1,T_12(i)*1.5);
-        h_12(i+1) = h_1 + Cp*(T_12(i+1) - T_1); % formule enthalpie
-        s_12(i+1) = s_1 + (1-eta_PiC) * Cp*log(T_12(i+1)/T_1); % cf. eq 3.15
-
-        Cp = integral(@Cp_air,T_2,T_23(i))*(1-i/samp) + integral(@Cp_f,T_2,T_23(i))*i/samp;
-        h_23(i) = h_2 + Cp;%*(T_23(i+1) - T_2);
-        s_23(i) = s_2 + Cp*log(T_23(i)/T_2)/(T_23(i)-T_2)...
-            - (R_air*(1-i/samp)+R_f*i/samp)*log(p_23(i)/p_2);
-
-        [T_34(i+1),Cp] = Detente(p_34(i+1)/p_3,T_34(i)/1.5);
-        h_34(i+1) = h_3 + Cp*(T_34(i+1) - T_3); % formule enthalpie
-        s_34(i+1) = s_3 + Cp*log(T_34(i+1)/T_3) - R_f*log(p_34(i+1)/p_3);
-
-        if T_41(i) < 300
-            h_41(i+1) = 1.006e3 * (T_41(i+1) - T_0);
-            s_41(i+1) = 1.006e3 * log(T_41(i+1)/T_0);
-        else 
-            Cp = integral(@Cp_air,T_4,T_41(i+1))*i/samp + integral(@Cp_f,T_4,T_41(i+1))*(1-i/samp);
-            h_41(i+1) = h_4 + Cp;
-            s_41(i+1) = s_4 + Cp*log(T_41(i+1)/T_4) /(T_41(i+1) - T_4);
-        end
-    end
-    T_12 = T_12-273.15; T_23 = T_23-273.15;
-    T_34 = T_34-273.15; T_41 = T_41-273.15;
-    FIG = [[s_12,s_23,s_34];[T_12,T_23,T_34]];
-%}
-
 
 if display
     samp = 25;
@@ -485,11 +444,11 @@ if display
         X = [P_e*1e-3,DATEX(1),pertes_turb,pertes_comp,DATEX(3:4)];
         pie(X,{'','','','','',''});
         legend(sprintf('Puissance effective : %g [MW]', P_e*1e-3),...
-            sprintf('Pertes mecaniques : %g [MW]', perte_mecex),...
-            sprintf('Irr. a la turbine : %g [MW]', pertes_turb),...
-            sprintf('Irr. au compresseur : %g [MW]', pertes_comp),...
-            sprintf('Irr. combustion : %g [MW]', perte_combex),...
-            sprintf('Pertes a la cheminee : %g [MW]', perte_echex),...
+            sprintf('Pertes mecaniques : %.3g [MW]', perte_mecex),...
+            sprintf('Irr. a la turbine : %.4g [MW]', pertes_turb),...
+            sprintf('Irr. au compresseur : %.4g [MW]', pertes_comp),...
+            sprintf('Irr. combustion : %.5g [MW]', perte_combex),...
+            sprintf('Pertes a la cheminee : %.5g [MW]', perte_echex),...
             'Location','southoutside');
         %title(sprintf('Primary Exergy Flux (%g MW)', P_prim*1e-3));
 end
