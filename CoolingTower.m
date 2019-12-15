@@ -53,14 +53,14 @@ function [DAT_WATER DAT_AIR MASSFLOW] = CoolingTower(P_w,options)
 if nargin<2
     options=struct();
     if nargin<1
-        P_W=444e3;%200MW_heat
+        P_W=200e3;%200MW_heat
     end
 end
 
 if isfield(options,'Tcond')
     Tcond = options.Tcond;
 else
-    Tcond = 30; %[K]
+    Tcond = 35; %[K]
 end
 
 if isfield(options,'Tpinch')
@@ -72,7 +72,7 @@ end
 if isfield(options,'Tw_out')
     Tw_out = options.Tw_out;
 else
-    Tw_out = 43; %[K]
+    Tw_out = 44; %[K]
 end
 
 if isfield(options,'Tw_in')
@@ -111,35 +111,39 @@ else
     Phi_out = 1; %[K]
 end
 
-%% dat_air
+if(Tw_out-Tcond)<Tpinch
+    disp('Problem');
+end
+
+%% DAT_AIR
 [Tdb_in, w_in, phi_in, h_in, Tdp_in, v_in, Twb_in] = Psychrometrics('Tdb',Ta_in,'phi',Phi_atm*100);
 [Tdb_out, w_out, phi_out, h_out, Tdp_out, v_out, Twb_out] = Psychrometrics('Tdb',Ta_out,'phi',Phi_out*100);
-dat_air = [Tdb_in, Tdb_out; h_in/1000, h_out/1000; w_in, w_out; phi_in/100, phi_out/100]; 
+DAT_AIR = [Tdb_in, Tdb_out; h_in/1000, h_out/1000; w_in, w_out; phi_in/100, phi_out/100]; 
 
-%% Massflows
+%% MASSFLOW
 cp_e = 4.18;
-massflow(1) = P_W/(cp_e*(Tw_out-Tw_in));
-massflow(3) = (massflow(1)*(XSteam('h_pT',1,Tw_out)-XSteam('h_pT',1,Tw_in)))...
-            /((dat_air(2,2)-dat_air(2,1))-(dat_air(3,2)-dat_air(3,1))*XSteam('h_pT',1,Tw_in));
-massflow(2) = massflow(3)*(dat_air(3,2)-dat_air(3,1));
+MASSFLOW(1) = P_W/(cp_e*(Tw_out-Tw_in));
+MASSFLOW(3) = (MASSFLOW(1)*(XSteam('hL_T',Tw_out)-XSteam('hL_T',Tw_in)))...
+            /((DAT_AIR(2,2)-DAT_AIR(2,1))-(DAT_AIR(3,2)-DAT_AIR(3,1))*XSteam('h_pT',1,Tw_in));
+MASSFLOW(2) = MASSFLOW(3)*(DAT_AIR(3,2)-DAT_AIR(3,1));
 
-%% dat_water
-f = @(t_e) massflow(3)*((dat_air(2,2)-dat_air(2,1))-(dat_air(3,2)-dat_air(3,1))*cp_e*t_e)...
-           -massflow(1)*cp_e*(Tw_out-t_e);
-       
-dat_water(1,1) = fsolve(f,1);
-dat_water(2,1) = XSteam('h_pT',1,dat_water(1,1));
-dat_water(3,1) = massflow(1)-massflow(2);
+%% DAT_WATER
 
-dat_water(1,2) = Tw_in;
-dat_water(2,2) = XSteam('h_pT',1,dat_water(1,2));
-dat_water(3,2) = massflow(1);
+f = @(t_e)(MASSFLOW(1)-MASSFLOW(2))*cp_e*t_e -MASSFLOW(1)*cp_e*Tw_in+MASSFLOW(2)*cp_e*Triver;
 
-dat_water(1,3) = Tw_out;
-dat_water(2,3) = XSteam('h_pT',1,dat_water(1,3));
-dat_water(3,3) = massflow(1);
+DAT_WATER(1,1) = fsolve(f,1);
+DAT_WATER(2,1) = XSteam('hL_T',DAT_WATER(1,1));
+DAT_WATER(3,1) = MASSFLOW(1)-MASSFLOW(2);
 
-dat_water(1,4) = Triver;
-dat_water(2,4) = XSteam('h_pT',1,dat_water(1,4));
-dat_water(3,4) = massflow(2);
+DAT_WATER(1,2) = Tw_in;
+DAT_WATER(2,2) = XSteam('hL_T',DAT_WATER(1,2));
+DAT_WATER(3,2) = MASSFLOW(1);
+
+DAT_WATER(1,3) = Tw_out;
+DAT_WATER(2,3) = XSteam('hL_T',DAT_WATER(1,3));
+DAT_WATER(3,3) = MASSFLOW(1);
+
+DAT_WATER(1,4) = Triver;
+DAT_WATER(2,4) = XSteam('hL_T',DAT_WATER(1,4));
+DAT_WATER(3,4) = MASSFLOW(2);
 end
