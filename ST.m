@@ -549,7 +549,6 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         e_4 = []; e_5 = [];
         x_4 = []; x_5 = [];
         X_4 = []; X_5 = [];
-        st_4 = {}; st_5 = {};
     elseif constr == p_4
         r = (p_4/p_3).^(1/reheat) * lam_chaud^(1-1/reheat);
 
@@ -559,14 +558,14 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         T_4  = XSteam('T_ph',p_4,h_4);
         s_4  = XSteam('s_ph',p_4,h_4);
         e_4  = (h_4-h_0) - (T_0+273.15)*(s_4-s_0);
-        x_4  = NaN; st_4 = {'4'};
+        x_4  = NaN;
 
         p_5 = p_4 *lam_chaud; % isobare
         T_5 = T_max; % réchauffeur
         h_5 = XSteam('h_pT',p_5,T_5);
         s_5 = XSteam('s_pT',p_5,T_5);
         e_5 = (h_5-h_0) - (T_0+273.15)*(s_5-s_0);
-        x_5 = NaN; st_5 = {'5'};
+        x_5 = NaN;
 
         n_rh = 1;
         while n_rh < reheat
@@ -586,14 +585,6 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
             e_5 = [e_5,(h_5(end)-h_0) - (T_0+273.15)*(s_5(end)-s_0)];
 
             x_4  = [x_4,NaN]; x_5 = [x_5,NaN];
-            if n_rh == 2
-                st_4 = {'4_I','4_II'};
-                st_5 = {'5_I','5_II'};
-            else
-                c = convertCharsToStrings(num2roman(n_rh));
-                st_4 = cat(2,st_4,cellstr(strcat("4_",c)));
-                st_5 = cat(2,st_5,cellstr(strcat("5_",c)));
-            end
         end
 
         T_6  = T_7;
@@ -627,9 +618,9 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
         T_4  = XSteam('T_ph',p_4,h_4);
         s_4  = XSteam('s_ph',p_4,h_4);
         e_4  = (h_4-h_0) - (T_0+273.15)*(s_4-s_0);
-        x_4  = NaN; st_4 = {'4'};
+        x_4  = NaN;
 
-        T_5 = []; p_5 = []; h_5 = []; s_5 = []; e_5 = []; x_5 = []; st_5 = {};
+        T_5 = []; p_5 = []; h_5 = []; s_5 = []; e_5 = []; x_5 = [];
         n_rh = 1;
         while n_rh < reheat
             n_rh = n_rh +1;
@@ -648,25 +639,11 @@ function [ETA XMASSFLOW DATEN DATEX DAT MASSFLOW COMBUSTION FIG] = ST(P_e,option
             e_4  = [e_4,(h_4(end)-h_0)-(T_0+273.15)*(s_4(end)-s_0)];
 
             x_4  = [x_4,NaN]; x_5 = [x_5,NaN];
-            if n_rh == 2
-                st_4 = {'4_I','4_II'};
-                st_5 = {'5_I'};
-            else
-                c = convertCharsToStrings(num2roman(n_rh));
-                st_4 = cat(2,st_4,cellstr(strcat("4_",c)));
-                st_5 = cat(2,st_5,cellstr(strcat("5_",c)));
-            end
         end
 
         T_5 = [T_5,T_5e]; p_5 = [p_5,p_5e];
         h_5 = [h_5,h_5e]; s_5 = [s_5,s_5e];
         e_5 = [e_5,e_5e]; x_5 = [x_5,x_5e];
-        if isempty(st_5);
-            st_5 = {'5'};
-        else
-            st_5 = cat(2,s_5,cellstr(strcat("5",...
-                convertCharsToStrings(num2roman(n_rh)))));
-        end
     else
         fprintf('\n  The parameter you choose is not resolvable.\n  Please set no more than 2 reheating, and define :\n');
         fprintf('    - if reheat == 0 : //\n    - if reheat == 1 : whether p_4 or x_6\n    - if reheat == 2 : p_4 and x_6.\n\n');
@@ -684,7 +661,7 @@ if nsout >= 1
         h_6i = linspace(h_3,h_6,nsout-reheat+2)'; h_6i = h_6i(2:end-1);
         T_6i  = zeros(nsout-reheat,1); p_6i  = zeros(nsout-reheat,1);
         s_6i  = zeros(nsout-reheat,1); e_6i  = zeros(nsout-reheat,1);
-        x_6i  = zeros(nsout-reheat,1); st_6i = cell(1,nsout-reheat);
+        x_6i  = zeros(nsout-reheat,1);
 
         h_6is = h_3 + (h_6i - h_3(end))/eta_SiT2; % eq2.9
         for i = 1:nsout-reheat
@@ -697,17 +674,15 @@ if nsout >= 1
             else
                 x_6i(i) = NaN;
             end
-            c = convertCharsToStrings(num2roman(nsout-i-reheat+1));
-            st_6i(i) = cellstr(strcat("6_",c));
         end
     else
         if nsout - reheat == 0
-            p_6i = []; T_6i = []; h_6i = []; s_6i = []; e_6i = []; x_6i = []; st_6i = {};
+            p_6i = []; T_6i = []; h_6i = []; s_6i = []; e_6i = []; x_6i = [];
         elseif nsout - reheat >= 1
             h_6i  = linspace(h_5(end),h_6,nsout-reheat+2)'; h_6i = h_6i(2:end-1);
             T_6i  = zeros(nsout-reheat,1); p_6i  = zeros(nsout-reheat,1);
             s_6i  = zeros(nsout-reheat,1); e_6i  = zeros(nsout-reheat,1);
-            x_6i  = zeros(nsout-reheat,1); st_6i = cell(1,nsout-reheat);
+            x_6i  = zeros(nsout-reheat,1);
 
             h_6is = h_5(end) + (h_6i - h_5(end))/eta_SiT2; % eq2.9
             for i = 1:nsout-reheat
@@ -720,18 +695,12 @@ if nsout >= 1
                 else
                     x_6i(i) = NaN;
                 end
-                c = convertCharsToStrings(num2roman(nsout-i-reheat+1));
-                st_6i(i) = cellstr(strcat("6_",c));
             end
         end
 
         T_6i = [T_4';T_6i]; p_6i = [p_4';p_6i];
         h_6i = [h_4';h_6i]; s_6i = [s_4';s_6i];
         e_6i = [e_4';e_6i]; x_6i = [x_4';x_6i];
-        for i = nsout-reheat+1:nsout
-            c = convertCharsToStrings(num2roman(i));
-            st_6i = cat(2,cellstr(strcat("6_",c)),st_6i);
-        end
     end
 
 % FRACTIONS OF TAPPING X_6i
@@ -876,8 +845,6 @@ if nsout >= 1
     h_9i = [h_9i;h_90]; s_9i = zeros(nsout +1,1);
     x_9i = zeros(nsout +1,1); X_9i = zeros(nsout +1,1);
 
-    st_7i = cell(1,nsout +1); st_9i = cell(1,nsout +1);
-
     for i = 1:nsout +1
         T_7i(i) = XSteam('T_ph',p_7i(i),h_7i(i));
         s_7i(i) = XSteam('s_ph',p_7i(i),h_7i(i));
@@ -904,22 +871,13 @@ if nsout >= 1
             end
         end
 
-        if i == nsout +1
-            x_7i(i) = NaN;
-            st_7i(i) = {'7_0'};
-            st_9i(i) = {'9_0'};
-        else
-            c = convertCharsToStrings(num2roman(nsout-i+1)); 
-            st_7i(i) = cellstr(strcat("7_",c));
-            st_9i(i) = cellstr(strcat("9_",c));
-        end
         x_9i(i) = NaN;
     end
+    x_7i(end) = NaN;
     e_7i = (h_7i-h_0) - (T_0+273.15)*(s_7i-s_0);
     e_9i = (h_9i-h_0) - (T_0+273.15)*(s_9i-s_0);
 
 
-    RowNames = cat(2,{'1','2','3'},st_4,st_5,st_6i,{'6','7'},st_7i,{'8'},st_9i);
 else
     s_2 = s_7; p_2 = p_3;% *1.129;
     h_2 = h_7 + (p_2 - p_7)/10;
@@ -950,8 +908,8 @@ state_6i = [T_6i';p_6i';h_6i';s_6i';e_6i';x_6i'];
 state_7i = [T_7i';p_7i';h_7i';s_7i';e_7i';x_7i'];
 state_9i = [T_9i';p_9i';h_9i';s_9i';e_9i';x_9i'];
 
-DAT = [state_1,state_2,state_3,state_4,state_5,state_6,state_7,state_8,...
-    state_6i,state_7i,state_9i];
+DAT = [state_1,state_2,state_3,state_4,state_5,state_6,state_6i,state_7,state_7i,state_8,...
+    state_9i];
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1081,19 +1039,6 @@ DAT = [state_1,state_2,state_3,state_4,state_5,state_6,state_7,state_8,...
 FIG = [];
 
 if display
-    % Table of values
-        T = table([T_1;T_2;T_3;T_4';T_5';T_6i;T_6;T_7;T_7i;T_8;T_9i],...
-            [p_1;p_2;p_3;p_4';p_5';p_6i;p_6;p_7;p_7i;p_8;p_9i],...
-            [h_1;h_2;h_3;h_4';h_5';h_6i;h_6;h_7;h_7i;h_8;h_9i],...
-            [s_1;s_2;s_3;s_4';s_5';s_6i;s_6;s_7;s_7i;s_8;s_9i],...
-            [e_1;e_2;e_3;e_4';e_5';e_6i;e_6;e_7;e_7i;e_8;e_9i],...
-            [x_1;x_2;x_3;x_4';x_5';x_6i;x_6;x_7 ;x_7i;x_8;x_9i],...
-            [X_1;X_2;X_3;X_4';X_5';X_6i;X_6;X_7;X_7i;X_8;X_9i]*m_v,...
-            'RowNames',RowNames);
-        T.Properties.VariableNames = {'Temperature','Pressure',...
-            'Enthalpy','Entropy','Exergy','Ratio','Debit'};
-        disp(T)
-
     samp = 20; lw = .75;
     %TS - graph
         FIG(1) = figure('Color','w'); hold on; grid;
