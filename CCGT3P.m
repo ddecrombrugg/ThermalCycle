@@ -101,7 +101,7 @@ end
 if isfield(options,'eta_SiC')
     eta_SiC = options.eta_SiC;
 else
-    eta_SiC = 0.8;  
+    eta_SiC = 0.9;  
 end
 if isfield(options,'eta_SiT')
     eta_SiT = options.eta_SiT;
